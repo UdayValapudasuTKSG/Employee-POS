@@ -1,0 +1,87 @@
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# compiled output
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
+
+# Replit
+.cache/
+.local/
+
+# Env files. The project has exactly two, both local-only:
+#   artifacts/api-server/.env        backend  (DB credentials, session key, Twilio)
+#   artifacts/bhi-card-portal/.env   frontend (base URL, ports, proxy)
+# Only their .env.example templates are committed.
+.env
+.env.*
+!.env.example
+
+# Generated deployment bundles (node deploy/make-release.mjs)
+/release/
+
+# Logs
+*.log
+logs/
+
+# Python caches (the tool scripts under .claude/ and _bmad/)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Claude Code: per-machine settings and installed tool packs (BMAD, GDS)
+# stay local. Only the speckit skills are shared, because the specs/ and
+# .specify/ folders they drive are committed.
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/speckit-*/
+.claude/settings.local.json
+
+# Office lock files and local exports of real data
+~$*
+*.xlsx
+*.xls
+
+# Local database dumps
+*.dump
+*.sql.gz

@@ -1,0 +1,30 @@
+Jul 30 22:11:19 itadmin-VMware20-1 systemd[1]: bhi-api.service: Main process exited, code=exited, status=203/EXEC
+Jul 30 22:11:19 itadmin-VMware20-1 systemd[1]: bhi-api.service: Failed with result 'exit-code'.
+Jul 30 22:11:25 itadmin-VMware20-1 systemd[1]: bhi-api.service: Scheduled restart job, restart counter is at 10.
+Jul 30 22:11:25 itadmin-VMware20-1 systemd[1]: Started bhi-api.service - BHI Health Card Portal API.
+Jul 30 22:11:25 itadmin-VMware20-1 systemd[1]: bhi-api.service: Main process exited, code=exited, status=203/EXEC
+Jul 30 22:11:25 itadmin-VMware20-1 systemd[1]: bhi-api.service: Failed with result 'exit-code'.
+Jul 30 22:11:30 itadmin-VMware20-1 systemd[1]: bhi-api.service: Scheduled restart job, restart counter is at 11.
+Jul 30 22:11:30 itadmin-VMware20-1 systemd[1]: Started bhi-api.service - BHI Health Card Portal API.
+Jul 30 22:11:30 itadmin-VMware20-1 systemd[1]: bhi-api.service: Main process exited, code=exited, status=203/EXEC
+Jul 30 22:11:30 itadmin-VMware20-1 systemd[1]: bhi-api.service: Failed with result 'exit-code'.
+Jul 30 22:11:35 itadmin-VMware20-1 systemd[1]: bhi-api.service: Scheduled restart job, restart counter is at 12.
+Jul 30 22:11:35 itadmin-VMware20-1 systemd[1]: Started bhi-api.service - BHI Health Card Portal API.
+Jul 30 22:11:35 itadmin-VMware20-1 systemd[1]: bhi-api.service: Main process exited, code=exited, status=203/EXEC
+Jul 30 22:11:35 itadmin-VMware20-1 systemd[1]: bhi-api.service: Failed with result 'exit-code'.
+Jul 30 22:11:40 itadmin-VMware20-1 systemd[1]: bhi-api.service: Scheduled restart job, restart counter is at 13.
+Jul 30 22:11:40 itadmin-VMware20-1 systemd[1]: Started bhi-api.service - BHI Health Card Portal API.
+Jul 30 22:11:40 itadmin-VMware20-1 systemd[1]: bhi-api.service: Main process exited, code=exited, status=203/EXEC
+Jul 30 22:11:40 itadmin-VMware20-1 systemd[1]: bhi-api.service: Failed with result 'exit-code'.
+Jul 30 22:11:46 itadmin-VMware20-1 systemd[1]: bhi-api.service: Scheduled restart job, restart counter is at 14.
+Jul 30 22:11:46 itadmin-VMware20-1 systemd[1]: Started bhi-api.service - BHI Health Card Portal API.
+Jul 30 22:11:46 itadmin-VMware20-1 systemd[1]: bhi-api.service: Main process exited, code=exited, status=203/EXEC
+Jul 30 22:11:46 itadmin-VMware20-1 systemd[1]: bhi-api.service: Failed with result 'exit-code'.
+Jul 30 22:11:51 itadmin-VMware20-1 systemd[1]: bhi-api.service: Scheduled restart job, restart counter is at 15.
+Jul 30 22:11:51 itadmin-VMware20-1 systemd[1]: Started bhi-api.service - BHI Health Card Portal API.
+Jul 30 22:11:51 itadmin-VMware20-1 systemd[1]: bhi-api.service: Main process exited, code=exited, status=203/EXEC
+Jul 30 22:11:51 itadmin-VMware20-1 systemd[1]: bhi-api.service: Failed with result 'exit-code'.
+Jul 30 22:11:56 itadmin-VMware20-1 systemd[1]: bhi-api.service: Scheduled restart job, restart counter is at 16.
+Jul 30 22:11:56 itadmin-VMware20-1 systemd[1]: Started bhi-api.service - BHI Health Card Portal API.
+Jul 30 22:11:56 itadmin-VMware20-1 systemd[1]: bhi-api.service: Main process exited, code=exited, status=203/EXEC
+Jul 30 22:11:56 itadmin-VMware20-1 systemd[1]: bhi-api.service: Failed with result 'exit-code'.

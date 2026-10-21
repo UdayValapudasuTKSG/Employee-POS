@@ -1,0 +1,250 @@
+# =============================================================================
+# BHI Health Card Portal — development stack
+# =============================================================================
+#
+#   Copy-Item artifacts/api-server/.env.example      artifacts/api-server/.env
+#   Copy-Item artifacts/bhi-card-portal/.env.example artifacts/bhi-card-portal/.env
+#   pnpm run stack:up        # = docker compose --env-file artifacts/bhi-card-portal/.env up -d --build
+#   docker compose logs -f
+#
+# The two env files, and nothing else, configure the stack:
+#   artifacts/api-server/.env        db, migrate, api, sms   (via env_file)
+#   artifacts/bhi-card-portal/.env   web                      (via env_file)
+# The --env-file flag is only there so WEB_PORT can set the published port;
+# without it the port is 3000.
+#
+#   → http://localhost:3000/            employee card lookup
+#   → http://localhost:3000/admin/login  admin portal
+#   → http://localhost:3000/__inbox      captured verification codes
+#
+#   docker compose down      stops and KEEPS your data
+#   docker compose down -v   DESTROYS the database
+#
+# DEVELOPER MACHINES ONLY. The supported deployment path is the nginx + systemd
+# install in deploy/README.md. This stack seeds demo accounts with publicly
+# documented passwords and terminates no TLS.
+#
+# Spec: specs/001-docker-compose-stack/
+# =============================================================================
+
+# Run a second clone side by side with `docker compose -p <other-name> ...` or
+# COMPOSE_PROJECT_NAME in the shell, so the two do not share a database.
+name: bhi-portal
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # db — PostgreSQL 16, matching the version deploy/db/schema.sql was generated
+  # with. POSTGRES_* (from the backend env file) creates the role and database,
+  # replacing step 1 of deploy/db/setup-local.ps1 entirely.
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    # Creates the login and database named in DATABASE_URL (env file) on the
+    # first start of an empty volume — docker/db/entrypoint.sh reads the URL.
+    env_file:
+      - artifacts/api-server/.env
+    entrypoint: ["sh", "/bhi/entrypoint.sh"]
+    volumes:
+      - bhi-db-data:/var/lib/postgresql/data
+      - ./docker/db/entrypoint.sh:/bhi/entrypoint.sh:ro
+      # Runs ONCE, on an empty data directory only. Mounting the real schema
+      # directly keeps deploy/db/ the single source — there is no copy to drift.
+      - ./deploy/db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    healthcheck:
+      # The only check that means "accepting connections" — which is false for
+      # tens of seconds after the container starts. Everything downstream waits
+      # on this rather than on a sleep.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+    # Published on 127.0.0.1:5434 for a desktop client (pgAdmin, DBeaver): this
+    # machine only, never the network. Not 5432, which a host PostgreSQL
+    # install owns, nor 5433, which another local stack uses.
+    ports:
+      - "127.0.0.1:5434:5432"
+
+  # ---------------------------------------------------------------------------
+  # migrate — one-shot, every start
+  #
+  # /docker-entrypoint-initdb.d runs only against an empty data directory, so a
+  # migration added after the volume exists would never apply. This service is
+  # how FR-009 is met: the full set re-applies on every start, which is safe
+  # because each migration is written to be idempotent.
+  # ---------------------------------------------------------------------------
+  migrate:
+    image: postgres:16-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - artifacts/api-server/.env
+    volumes:
+      - ./deploy/db/migrations:/migrations:ro
+      - ./docker/migrate/apply-migrations.sh:/migrate/apply-migrations.sh:ro
+    # Connects with DATABASE_URL from the env file.
+    command: ["sh", "/migrate/apply-migrations.sh"]
+    # A restarting one-shot service is an infinite loop.
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # api — built from source
+  #
+  # Published on host loopback only (127.0.0.1:3001). HOST=0.0.0.0 inside the
+  # container is needed so nginx in the `web` container can reach it; the
+  # loopback-only publish keeps it off the network.
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: api
+    depends_on:
+      migrate:
+        # Not "started" — the API must not come up until migrations have
+        # actually finished, or it reports a stale schema.
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      sms:
+        # Only "started": a phone lookup is one of several ways in, so a sick
+        # gateway should surface as a 503 on that path rather than hold the
+        # whole API — and email lookups — down with it.
+        condition: service_started
+    # Connects with DATABASE_URL from the env file; its host must be `db` here,
+    # not localhost. Every connection runs as the restricted bhi_app role, which
+    # row-level security applies to (lib/db/src/connection.ts).
+    env_file:
+      - artifacts/api-server/.env
+    healthcheck:
+      # healthz, NOT readyz. readyz returns 503 when the database is unreachable,
+      # so using it would take the API out of the stack for a database fault and
+      # destroy the diagnostic pair (healthz ok + readyz 503 = database problem).
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+    # Loopback only, so the API is reachable from this machine for direct
+    # clients (Postman, curl) but never from the network. Use 127.0.0.1, not
+    # localhost — VS Code's extension host may hold [::1]:3001.
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  # ---------------------------------------------------------------------------
+  # mail — local verification-code sink
+  #
+  # A real SMTP server and a real webhook endpoint that capture messages instead
+  # of forwarding them. OTP_DEV_MODE stays false, so the API runs its genuine
+  # nodemailer and webhook code against these — this exercises the production
+  # delivery path rather than bypassing it.
+  # ---------------------------------------------------------------------------
+  mail:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: mail
+    environment:
+      # Both listeners bind all interfaces so sibling containers can reach them.
+      # The variable defaults to 127.0.0.1, so every non-container invocation
+      # (pnpm run local, local:mail, the sink inside serve-local.mjs) is
+      # unchanged.
+      SINK_BIND_HOST: 0.0.0.0
+      SMTP_LISTEN_PORT: 2525
+      SINK_HTTP_PORT: 2526
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('node:net').connect(2526,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # sms — Twilio gateway adapter
+  #
+  # The one service in this stack that reaches the outside world and spends real
+  # money. The API posts {to, body} here and cares only about the HTTP status;
+  # this normalises to E.164 and calls Twilio's REST API.
+  #
+  # SMS_PROVIDER, the Twilio credentials and the country rules come from the
+  # backend env file, where SMS_PROVIDER can be set to `dryrun` to exercise the
+  # whole path — API, token auth, E.164 normalisation — without sending or being
+  # charged. The gateway reads the same SMS_WEBHOOK_TOKEN the API sends, so the
+  # shared secret cannot drift between the two.
+  # ---------------------------------------------------------------------------
+  sms:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: sms
+    env_file:
+      - artifacts/api-server/.env
+    environment:
+      # 127.0.0.1 inside a container is the container's own loopback, so the API
+      # could not reach the gateway. The variable defaults to loopback, leaving
+      # every non-container invocation unchanged.
+      SMS_GATEWAY_BIND_HOST: 0.0.0.0
+      SMS_GATEWAY_PORT: 2527
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:2527/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # web — the real production nginx
+  #
+  # Site config generated at build AND at start from deploy/nginx/*.conf by
+  # docker/nginx/render-config.sh, which applies five documented substitutions.
+  # Not a fork, not a template — the production file is read as-is, so drift is
+  # structurally impossible.
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      target: web
+    depends_on:
+      api:
+        condition: service_healthy
+      mail:
+        condition: service_started
+    # RATE_* come from the frontend env file. render-config.sh falls back to
+    # the exact production numbers for any that are unset, so the file is
+    # optional — the production overlay never starts this service at all.
+    env_file:
+      - path: artifacts/bhi-card-portal/.env
+        required: false
+    environment:
+      API_UPSTREAM: api:3001
+      MAIL_UPSTREAM: mail:2526
+      SERVER_NAME: localhost
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  # Your database. Survives down, restart and rebuild. Destroyed only by
+  # `docker compose down -v`.
+  bhi-db-data:

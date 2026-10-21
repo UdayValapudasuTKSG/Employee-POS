@@ -1,0 +1,39 @@
+# Headers every proxied request carries to the API.
+#
+#   [ -f /etc/nginx/proxy_params ] || sudo cp nginx/proxy_params /etc/nginx/
+#
+# Debian and Ubuntu ship this file already. Overwrite yours only if it is
+# missing — other sites on the same server include it too.
+
+proxy_http_version 1.1;
+
+proxy_set_header Host              $host;
+proxy_set_header X-Real-IP         $remote_addr;
+
+# The API reads this to record who performed each audited action. It only does
+# so when TRUST_PROXY is set in /opt/bhi-api/.env (set it to 1 — one proxy, this
+# one). Without that the audit trail records 127.0.0.1 for every action.
+proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+
+# The one string that ties nginx's account of a request to the API's.
+#
+# nginx generates $request_id per request; the API adopts it as its log's request
+# id and prints it in the error message the portal shows. So a reference read off
+# an administrator's screen finds the access line (status, client address, timing)
+# and every API line for the same request (the stack trace) in one search:
+#
+#   grep <reference> /var/log/nginx/bhi-portal.access.log
+#   journalctl -u bhi-api --grep <reference>
+#
+# proxy_set_header overwrites whatever the client sent, so this cannot be forged
+# from outside. If your /etc/nginx/proxy_params is Debian's and you would rather
+# not edit it, add just this line — without it the API generates its own id and
+# only the correlation with nginx is lost.
+proxy_set_header X-Request-Id      $request_id;
+
+# Long enough for a large member import to commit, short enough that a hung
+# backend does not pile up connections.
+proxy_read_timeout 60s;
+proxy_send_timeout 60s;
+proxy_connect_timeout 5s;

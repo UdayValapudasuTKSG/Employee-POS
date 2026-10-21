@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "MrRvQrdOCVOTr6OwgvX0o"
+uri = "file://bhi-portal-nginx-deploy.zip"
+type = "unspecified"
+title = "nginx deployment package (with DB upgrade migration)"
+
+[[outputs]]
+id = "RpeV-O-IO5nW7e8wFrCz3"
+uri = "file://bhi-portal-nginx-deploy.tar.gz"
+type = "unspecified"
+title = "Updated nginx deployment package (fixed service file + latest features)"

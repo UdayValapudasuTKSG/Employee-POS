@@ -1,0 +1,53 @@
+# =============================================================================
+# Production overlay — Azure VM (or any single Linux host)
+# =============================================================================
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d --build api
+#
+# Naming `api` is deliberate and is the whole mechanism for leaving two services
+# out: compose starts a named service and its dependencies, so this brings up
+# db -> migrate -> sms -> api and NOTHING else. The two omitted services are
+# omitted on purpose:
+#
+#   web   The container front door is HTTP-only (deploy/nginx/bhi-portal.conf is
+#         `listen 80`) and render-config.sh always injects a /__inbox location.
+#         In production nginx runs on the HOST instead, from
+#         deploy/nginx/bhi-portal-ssl.conf, which has the 443 listener and no
+#         inbox. See docs/DEPLOY-AZURE.md.
+#
+#         This is not a preference. The rate limits in bhi-portal-limits.conf key
+#         on $binary_remote_addr and there is no real_ip_header anywhere in the
+#         config, so a second proxy in front would make every request appear to
+#         come from that proxy — turning "5 admin logins per minute per attacker"
+#         into "5 per minute for the entire internet". One proxy, terminating TLS
+#         itself, is the only arrangement where those limits mean what they say.
+#
+#   mail  A development sink that captures messages instead of sending them.
+#         Email goes to a real SMTP server in production, so the sink has no job.
+#
+# Everything else — the database, its volume, the one-shot migrate service, the
+# API and the SMS gateway — is unchanged from compose.yaml.
+# =============================================================================
+
+services:
+
+  api:
+    # Published on loopback ONLY. The host nginx proxies to 127.0.0.1:3001, so
+    # the API needs to be reachable from the host but must never be reachable
+    # from the internet. `3001:3001` (no address) would publish on every
+    # interface AND punch through the Azure NSG's inbound rules, because Docker
+    # writes its own iptables rules ahead of them. The 127.0.0.1 prefix is the
+    # difference between an internal API and a public one.
+    ports:
+      - "127.0.0.1:3001:3001"
+    # A crashing API should come back without waiting for someone to notice.
+    restart: always
+
+  db:
+    restart: always
+    # Deliberately no `ports:` at all. The database is reached over the compose
+    # network by service name; publishing 5432 anywhere, loopback included, only
+    # widens what can reach it.
+
+  sms:
+    restart: always

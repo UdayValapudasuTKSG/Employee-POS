@@ -1,0 +1,4709 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: BHI Health Card Portal API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: employee
+  - name: adminAuth
+  - name: adminMembers
+  - name: adminOps
+  - name: assistant
+  - name: pos
+    description: Partner point-of-sale integration, authenticated by a per-brand POS key.
+paths:
+  /v1/assistant/ask:
+    post:
+      operationId: askAssistant
+      tags: [assistant]
+      summary: Ask the Need help assistant a general portal question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantAskInput"
+      responses:
+        "200":
+          description: Assistant answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantAnswer"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /v1/lookup:
+    post:
+      operationId: lookupMember
+      tags: [employee]
+      summary: Start a card lookup by email or phone
+      description: >
+        Searches every active company. A contact that matches no member is
+        refused with 404 CONTACT_NOT_FOUND. Otherwise the response is the same
+        — CODE_SENT, with the same shape and at least the same response time —
+        whether the contact matches one member, several in one company, or
+        members in several companies (spec FR-016). Choosing between several
+        records, and the multi-company message, both happen after the code is
+        verified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LookupInput"
+      responses:
+        "200":
+          description: Uniform lookup response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LookupResult"
+        "400":
+          description: Invalid input (depends only on the input's format)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: CONTACT_NOT_FOUND — no eligible member has this email or phone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/otp/select:
+    post:
+      operationId: selectVerifiedRecord
+      tags: [employee]
+      summary: After verification, choose which of several records in one company is yours
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpSelectInput"
+      responses:
+        "200":
+          description: The card session for the chosen record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpVerifyResult"
+        "400":
+          description: The selection has expired or does not belong to this verification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/otp/verify:
+    post:
+      operationId: verifyOtp
+      tags: [employee]
+      summary: Verify the 6-digit code and get a card session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerifyInput"
+      responses:
+        "200":
+          description: >
+            Verified. `status` says what follows: CARD (a card session was
+            issued), SELECT (choose one of several records in one company with
+            /v1/otp/select), or MULTI_COMPANY (the contact matches members in
+            more than one company; no card, contact HR).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpVerifyResult"
+        "400":
+          description: Wrong code, expired, or locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/otp/resend:
+    post:
+      operationId: resendOtp
+      tags: [employee]
+      summary: Resend the one-time code (60s cooldown, max 3)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpResendInput"
+      responses:
+        "200":
+          description: Uniform lookup response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LookupResult"
+        "400":
+          description: Cooldown or limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/card:
+    get:
+      operationId: getCard
+      tags: [employee]
+      summary: Get the digital card for the current card session
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Card payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardPayload"
+        "401":
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/card/email:
+    post:
+      operationId: emailCard
+      tags: [employee]
+      summary: Email the card to the member as a PDF attachment
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardEmailResult"
+        "400":
+          description: No email address on file for this member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "401":
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: No active policy on file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "503":
+          description: Email delivery is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/card/change-requests:
+    post:
+      operationId: createChangeRequest
+      tags: [employee]
+      summary: Raise a Request For Modification (RFM) for yourself or a dependant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeRequestCreate"
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnChangeRequest"
+        "400":
+          description: >
+            No change requested, values match the record already, too many
+            pending requests, or the document was rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "401":
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+    get:
+      operationId: listOwnChangeRequests
+      tags: [employee]
+      summary: The requests raised by the current card session's member
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The member's own requests, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OwnChangeRequest"
+        "401":
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/session/logout:
+    post:
+      operationId: logoutCardSession
+      tags: [employee]
+      summary: Revoke the card session server-side
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+  /v1/discounts:
+    get:
+      operationId: getDiscounts
+      tags: [employee]
+      summary: The member's discount allowance this month, the partner brands, and their recent coupons
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Discount summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscountSummary"
+        "401":
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/discounts/coupons:
+    get:
+      operationId: listDiscountCoupons
+      tags: [employee]
+      summary: The member's coupons, newest first, filtered and paged
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: brand
+          in: query
+          schema: { $ref: "#/components/schemas/DiscountBrand" }
+        - name: status
+          in: query
+          description: EXPIRED is an ACTIVE coupon past its expiry; ACTIVE excludes those.
+          schema:
+            type: string
+            enum: [ACTIVE, EXPIRED, REDEEMED, VOIDED, CANCELLED]
+        - name: month
+          in: query
+          description: "Generated in this month, Guyana time: YYYY-MM"
+          schema: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+        - name: page
+          in: query
+          schema: { type: number, minimum: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: number, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: One page of coupons
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnDiscountCouponPage"
+        "400":
+          description: An unknown brand or status, or a malformed month (INVALID_INPUT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "401":
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+    post:
+      operationId: generateDiscountCoupon
+      tags: [employee]
+      summary: Generate a single-use coupon for one brand
+      description: >
+        The code is returned once, here, and stored only as a hash. Generating
+        a coupon cancels the member's previous unredeemed coupon for the same
+        brand. Refused when nothing is left of this month's allowance.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateCouponInput"
+      responses:
+        "200":
+          description: Generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedCoupon"
+        "400":
+          description: Unknown brand (INVALID_INPUT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "401":
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: This month's allowance is used up (ALLOWANCE_EXHAUSTED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/pos/coupons/check:
+    post:
+      operationId: posCheckCoupon
+      tags: [pos]
+      summary: Validate a scanned coupon and, given a bill, quote its discount. Changes nothing.
+      security:
+        - posKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PosCheckInput"
+      responses:
+        "200":
+          description: The coupon can be redeemed now
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosCheckResult"
+        "400":
+          description: Malformed request (INVALID_INPUT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "401":
+          description: Missing or unknown POS key (POS_UNAUTHORIZED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: No such coupon (COUPON_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: >
+            Cannot be redeemed: COUPON_WRONG_BRAND, COUPON_EXPIRED,
+            COUPON_ALREADY_REDEEMED, COUPON_VOIDED, COUPON_CANCELLED,
+            MEMBER_NOT_ELIGIBLE or ALLOWANCE_EXHAUSTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/pos/coupons/redeem:
+    post:
+      operationId: posRedeemCoupon
+      tags: [pos]
+      summary: Redeem a coupon against a bill and record the discount given
+      description: >
+        Single-use. Retrying with the same code and posReference returns the
+        original redemption rather than an error, so a till that lost the
+        response can safely send it again.
+      security:
+        - posKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PosRedeemInput"
+      responses:
+        "200":
+          description: Redeemed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosRedemption"
+        "400":
+          description: Malformed request (INVALID_INPUT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "401":
+          description: Missing or unknown POS key (POS_UNAUTHORIZED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: No such coupon (COUPON_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: >
+            Cannot be redeemed — the same codes as /v1/pos/coupons/check — or
+            PARTIAL_DISCOUNT_NOT_CONFIRMED: the allowance covers less than the
+            full percentage and confirmPartialDiscount was not sent. That
+            answer also carries `quote` beside `error`; nothing is recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/pos/coupons/{couponId}/void:
+    post:
+      operationId: posVoidCoupon
+      tags: [pos]
+      summary: Reverse a redemption (sale cancelled or refunded) and give the allowance back
+      security:
+        - posKey: []
+      parameters:
+        - name: couponId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PosVoidInput"
+      responses:
+        "200":
+          description: Voided (also returned when it was already voided)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosVoidResult"
+        "400":
+          description: Malformed request (INVALID_INPUT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "401":
+          description: Missing or unknown POS key (POS_UNAUTHORIZED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: No redemption with this id for this brand (COUPON_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: Never redeemed, so there is nothing to void (COUPON_NOT_REDEEMED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/auth/login:
+    post:
+      operationId: adminLogin
+      tags: [adminAuth]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResult"
+        "401":
+          description: Bad credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/me:
+    get:
+      operationId: getAdminMe
+      tags: [adminAuth]
+      summary: Current admin identity, scope, and permissions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMe"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      tags: [adminOps]
+      summary: Dashboard summary within the admin's scope
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies:
+    get:
+      operationId: listCompanies
+      tags: [adminMembers]
+      summary: Companies in the admin's scope (for filters and pickers)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Companies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+    post:
+      operationId: onboardCompany
+      tags: [adminOps]
+      summary: >
+        Onboard a client company and issue its one client admin login (super
+        admin; all-or-nothing, no code release — spec FR-017)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyOnboard"
+      responses:
+        "201":
+          description: The company, its client admin, and the admin's temporary password (shown once)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyOnboardResult"
+        "400":
+          description: Validation failed (a value too long, a bad email)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: COMPANY_EXISTS or EMAIL_IN_USE
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}:
+    patch:
+      operationId: updateCompany
+      tags: [adminOps]
+      summary: >
+        Edit a company's profile (super admin: every field; client admin:
+        address and contact fields of its own company)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyUpdate"
+      responses:
+        "200":
+          description: The updated company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/offboard:
+    post:
+      operationId: offboardCompany
+      tags: [adminOps]
+      summary: >
+        Offboard a company (super admin): it becomes inactive, its users are
+        deactivated, and it leaves the card lookup and billing. No record is
+        deleted (spec FR-019).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonInput"
+      responses:
+        "200":
+          description: The offboarded company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "400":
+          description: Already inactive, or no reason given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/reactivate:
+    post:
+      operationId: reactivateCompany
+      tags: [adminOps]
+      summary: Bring an offboarded company back, with its users (super admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonInput"
+      responses:
+        "200":
+          description: The reactivated company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "400":
+          description: Already active, or no reason given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/members:
+    get:
+      operationId: listMembers
+      tags: [adminMembers]
+      summary: Search members across the admin's scope (paged, masked per role)
+      description: >
+        Covers every company the caller's scope reaches — one company for a
+        client admin or HR administrator, every company for a super admin,
+        support or auditor — and labels each row with its company.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: Matches first or last name, ID number, email or phone
+          schema: { type: string }
+        - name: company
+          in: query
+          description: Narrow to one company number within the scope
+          schema: { type: string }
+        - name: active
+          in: query
+          description: true for active members, false for inactive; omit for both
+          schema: { type: string, enum: ["true", "false"] }
+        - name: classCode
+          in: query
+          schema: { type: string }
+        - name: missingDateOfBirth
+          in: query
+          description: true lists only members with no date of birth, who can never be retired at 65
+          schema:
+            type: string
+            enum: ["true"]
+        - name: page
+          in: query
+          schema: { type: number, minimum: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: number, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Paged members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberPage"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members:
+    post:
+      operationId: createMember
+      tags: [adminMembers]
+      summary: Create a member record by hand (reason required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberCreate"
+      responses:
+        "200":
+          description: The created member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Validation failed, or the class cannot be assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Company not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: >
+            ID_ALREADY_REGISTERED — this ID type and number already belongs to a
+            member somewhere on the platform (spec FR-007). The message does not
+            say which company. COMPANY_INACTIVE — the company is offboarded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}:
+    get:
+      operationId: getMember
+      tags: [adminMembers]
+      summary: Member detail (404 if out of scope)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+    patch:
+      operationId: updateMember
+      tags: [adminMembers]
+      summary: Update member fields (reason required). Status changes use deactivate/reactivate.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberUpdate"
+      responses:
+        "200":
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: ID_ALREADY_REGISTERED or COMPANY_INACTIVE
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/policy:
+    post:
+      operationId: saveMemberPolicy
+      tags: [adminMembers]
+      summary: Create or update a member's policy (reason required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberPolicyInput"
+      responses:
+        "200":
+          description: The updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/deactivate:
+    post:
+      operationId: deactivateMember
+      tags: [adminMembers]
+      summary: >
+        Set a member inactive (Active = false) with a reason. Never deletes the
+        record; revokes card sessions; reversible through /reactivate.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeactivateInput"
+      responses:
+        "200":
+          description: The member, now inactive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Already inactive, or no reason given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/reactivate:
+    post:
+      operationId: reactivateMember
+      tags: [adminMembers]
+      summary: >
+        Set an inactive member active again (reason required). Refused for a
+        member who has reached the plan's retirement age of 65.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonInput"
+      responses:
+        "200":
+          description: The member, now active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Already active, past the retirement age, or no reason given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/dependents:
+    post:
+      operationId: createDependent
+      tags: [adminMembers]
+      summary: >
+        Add a dependant to an existing member (reason required). New dependants
+        are active and count toward next month's bill.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DependentCreate"
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: COMPANY_INACTIVE — the company has been offboarded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/dependents/{dependentId}:
+    patch:
+      operationId: updateDependent
+      tags: [adminMembers]
+      summary: Update a dependant (reason required). Status changes use deactivate/reactivate.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+        - name: dependentId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DependentUpdate"
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/dependents/{dependentId}/deactivate:
+    post:
+      operationId: deactivateDependent
+      tags: [adminMembers]
+      summary: Set a dependant inactive with a reason (never deleted)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+        - name: dependentId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeactivateInput"
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Already inactive, or no reason given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/dependents/{dependentId}/reactivate:
+    post:
+      operationId: reactivateDependent
+      tags: [adminMembers]
+      summary: Set a dependant active again (reason required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+        - name: dependentId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonInput"
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Already active, or no reason given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/beneficiaries:
+    post:
+      operationId: createBeneficiary
+      tags: [adminMembers]
+      summary: Add a beneficiary to a member (reason required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BeneficiaryCreate"
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/beneficiaries/{beneficiaryId}:
+    patch:
+      operationId: updateBeneficiary
+      tags: [adminMembers]
+      summary: Update a beneficiary (reason required). Status changes use deactivate/reactivate.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+        - name: beneficiaryId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BeneficiaryUpdate"
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/beneficiaries/{beneficiaryId}/deactivate:
+    post:
+      operationId: deactivateBeneficiary
+      tags: [adminMembers]
+      summary: Set a beneficiary inactive with a reason (never deleted)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+        - name: beneficiaryId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeactivateInput"
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Already inactive, or no reason given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/members/{memberId}/beneficiaries/{beneficiaryId}/reactivate:
+    post:
+      operationId: reactivateBeneficiary
+      tags: [adminMembers]
+      summary: Set a beneficiary active again (reason required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: number }
+        - name: beneficiaryId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonInput"
+      responses:
+        "200":
+          description: Updated member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+        "400":
+          description: Already active, or no reason given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/verifications/{id}/reset-lock:
+    post:
+      operationId: resetVerificationLock
+      tags: [adminOps]
+      summary: Clear a locked verification session so the member can try again (reason required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonInput"
+      responses:
+        "200":
+          description: Unlocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationUnlockResult"
+        "400":
+          description: Not locked, or a decoy session that can never verify
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/import:
+    post:
+      operationId: importMembers
+      tags: [adminOps]
+      summary: Bulk import members from CSV text or an uploaded sheet (dry-run preview or commit)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportInput"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          description: >
+            INVALID_INPUT, EMPTY_CSV, BAD_HEADER, or LAYOUT_WITHDRAWN when a
+            sheet uses the old 8-column members layout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/import/layouts:
+    get:
+      operationId: getImportLayouts
+      tags: [adminOps]
+      summary: The sheet layouts the importer accepts, with their expected columns
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Accepted layouts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportLayoutList"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/import/policies:
+    post:
+      operationId: importPolicies
+      tags: [adminOps]
+      summary: Bulk import member policies from a Policies sheet (dry-run preview or commit). Super admin only.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyImportInput"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyImportResult"
+        "400":
+          description: INVALID_INPUT, EMPTY_CSV or BAD_HEADER
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied (needs POLICY_MANAGE)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: UPDATES_NOT_CONFIRMED — some members already have a policy and confirmUpdates was not set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/import/policies/layout:
+    get:
+      operationId: getPolicyImportLayout
+      tags: [adminOps]
+      summary: The Policies sheet's columns, for the template
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The Policies layout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyImportLayout"
+        "403":
+          description: Denied (needs POLICY_MANAGE)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/import-exceptions:
+    get:
+      operationId: listImportExceptions
+      tags: [adminOps]
+      summary: HR's fix list — records held by bulk import or the migration for one company
+      description: >
+        Returns open and resolved records together, newest first. The server
+        also accepts `?status=OPEN` or `?status=RESOLVED` to narrow the list;
+        it is not declared as a parameter because the generated client would
+        then name two types ListImportExceptionsParams.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Held records, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportExceptionList"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/import-exceptions/{exceptionId}/resolve:
+    post:
+      operationId: resolveImportException
+      tags: [adminOps]
+      summary: Mark a held record resolved by hand, with a note
+      description: >
+        For a record fixed some other way (entered in the portal, say) or no
+        longer needed. Nothing is loaded or restored — a corrected row in a new
+        import is still the way to load a held record and its family. Needs
+        MEMBER_IMPORT and a company that can take writes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+        - name: exceptionId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveImportExceptionInput"
+      responses:
+        "200":
+          description: The resolved record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportExceptionItem"
+        "400":
+          description: INVALID_INPUT (note under 3 characters) or ALREADY_RESOLVED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied or read-only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/classes:
+    get:
+      operationId: listClasses
+      tags: [adminOps]
+      summary: The classes shared by every company, with whether their standard rates are complete
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: includeRetired
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Classes in sort order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassList"
+    post:
+      operationId: createClass
+      tags: [adminOps]
+      summary: Add a class (super admin). Not assignable until its four standard tiers are priced.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClassInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassItem"
+        "400":
+          description: INVALID_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: CLASS_EXISTS or CLASS_CODES_EXHAUSTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/classes/{classCode}:
+    patch:
+      operationId: updateClass
+      tags: [adminOps]
+      summary: Rename, reorder, retire or reactivate a class (super admin). There is no delete.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: classCode
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClassInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassItem"
+        "404":
+          description: No such class
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/rates:
+    get:
+      operationId: getRateCard
+      tags: [adminOps]
+      summary: The rate set in force for a company (or the standard card) on a date, with the source per tier
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: company
+          in: query
+          required: false
+          schema: { type: string }
+        - name: asOf
+          in: query
+          required: false
+          description: YYYY-MM-DD; defaults to today in Guyana
+          schema: { type: string }
+      responses:
+        "200":
+          description: Rate card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateCard"
+        "404":
+          description: Company not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+    post:
+      operationId: createRateSet
+      tags: [adminOps]
+      summary: Add a four-tier rate set for a class, standard or for one company (super admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRateSetInput"
+      responses:
+        "201":
+          description: The four rows created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PremiumRateList"
+        "400":
+          description: INVALID_INPUT (not four tiers, shares not adding up, unknown class or company)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: RATE_EXISTS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/rates/history:
+    get:
+      operationId: getRateHistory
+      tags: [adminOps]
+      summary: Every rate row, oldest first (super admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: classCode
+          in: query
+          required: false
+          schema: { type: string }
+        - name: company
+          in: query
+          required: false
+          description: A company number, or STANDARD for the standard card only
+          schema: { type: string }
+      responses:
+        "200":
+          description: Rate rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PremiumRateList"
+  /v1/admin/rates/{premiumRateId}:
+    patch:
+      operationId: updateRate
+      tags: [adminOps]
+      summary: Deactivate, reactivate or annotate a rate row. Amounts are never edited.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: premiumRateId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRateInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PremiumRate"
+        "404":
+          description: No such rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/companies/{companyNumber}/billing-rules:
+    get:
+      operationId: listBillingRules
+      tags: [adminOps]
+      summary: A company's premium split rules (company and employee shares), newest first
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRuleList"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+    post:
+      operationId: createBillingRule
+      tags: [adminOps]
+      summary: Add a premium split rule for a company from a date (super admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyNumber
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBillingRuleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRule"
+        "400":
+          description: INVALID_INPUT (shares must total 100)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: RULE_EXISTS for the same company and effective date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/billing/runs:
+    get:
+      operationId: listBillingRuns
+      tags: [adminOps]
+      summary: Billing runs in scope. Superseded runs are hidden unless status=SUPERSEDED.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: company
+          in: query
+          required: false
+          schema: { type: string }
+        - name: month
+          in: query
+          required: false
+          description: YYYY-MM
+          schema: { type: string }
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [DRAFT, FINAL, SUPERSEDED]
+      responses:
+        "200":
+          description: Runs, newest month first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRunList"
+    post:
+      operationId: generateBillingRuns
+      tags: [adminOps]
+      summary: Generate or recalculate the month's draft run for one, several or all companies (super admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateBillingInput"
+      responses:
+        "200":
+          description: One result per company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateBillingResult"
+        "400":
+          description: INVALID_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/billing/runs/{runId}:
+    get:
+      operationId: getBillingRun
+      tags: [adminOps]
+      summary: A run with its totals per class and tier, its lines and its unpriced members
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Run detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRunDetail"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/billing/runs/{runId}/export.csv:
+    get:
+      operationId: exportBillingRun
+      tags: [adminOps]
+      summary: The run's lines as CSV (premium columns; no contact details)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: CSV
+          content:
+            text/csv:
+              schema: { type: string }
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/billing/runs/{runId}/finalise:
+    post:
+      operationId: finaliseBillingRun
+      tags: [adminOps]
+      summary: Freeze a draft run (super admin). Refused while any member is unpriced.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinaliseBillingInput"
+      responses:
+        "200":
+          description: The finalised run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRunSummary"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: RUN_HAS_ISSUES or RUN_NOT_DRAFT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/change-requests:
+    get:
+      operationId: listChangeRequests
+      tags: [adminOps]
+      summary: Employee change requests awaiting review (paged, scope-filtered)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Defaults to PENDING
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED, ALL]
+        - name: page
+          in: query
+          schema: { type: number, minimum: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: number, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Paged change requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeRequestPage"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/change-requests/{id}:
+    get:
+      operationId: getChangeRequest
+      tags: [adminOps]
+      summary: One change request with before/after values and document metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Change request detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeRequestDetail"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/change-requests/{id}/document:
+    get:
+      operationId: getChangeRequestDocument
+      tags: [adminOps]
+      summary: The supporting document's bytes, base64 encoded
+      description: >
+        `mimeType` is the type sniffed from the file's magic bytes on upload,
+        never the type the uploader declared. Render images with an <img> tag and
+        offer PDFs as a download only — never in an iframe or embed, which would
+        execute any script the document carries against the portal's origin.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Document content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeRequestDocumentContent"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found, out of scope, or the content has been purged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/change-requests/{id}/approve:
+    post:
+      operationId: approveChangeRequest
+      tags: [adminOps]
+      summary: Approve a change request and apply it (note required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeRequestDecision"
+      responses:
+        "200":
+          description: Approved and applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeRequestDetail"
+        "400":
+          description: >
+            Already decided, or the record changed since the request was raised
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/change-requests/{id}/reject:
+    post:
+      operationId: rejectChangeRequest
+      tags: [adminOps]
+      summary: Reject a change request without applying it (note required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeRequestDecision"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeRequestDetail"
+        "400":
+          description: Already decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found or out of scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/lookup-alerts:
+    get:
+      operationId: listLookupAlerts
+      tags: [adminOps]
+      summary: >
+        Contacts that matched members in more than one company at the card
+        lookup (super admins only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Defaults to OPEN
+          schema:
+            type: string
+            enum: [OPEN, RESOLVED, ALL]
+      responses:
+        "200":
+          description: Alerts, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LookupAlert"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/lookup-alerts/{id}/resolve:
+    post:
+      operationId: resolveLookupAlert
+      tags: [adminOps]
+      summary: Mark a multi-company alert resolved (super admin; note required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeRequestDecision"
+      responses:
+        "200":
+          description: The resolved alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LookupAlert"
+        "400":
+          description: Already resolved, or no note given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/audit:
+    get:
+      operationId: listAuditLogs
+      tags: [adminOps]
+      summary: Audit trail (scope-filtered)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entityId
+          in: query
+          schema: { type: string }
+        - name: actor
+          in: query
+          schema: { type: string }
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string }
+        - name: to
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: number, minimum: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: number, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Paged audit rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/verifications:
+    get:
+      operationId: listVerifications
+      tags: [adminOps]
+      summary: Verification history (masked, scope-filtered)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: number, minimum: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: number, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Paged verification sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationPage"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [adminOps]
+      summary: Admin user directory (super admin; a client admin sees its own company's users)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Admin users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUserSummary"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+    post:
+      operationId: createAdminUser
+      tags: [adminOps]
+      summary: Invite a new admin user (returns a one-time temporary password)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserCreate"
+      responses:
+        "200":
+          description: Created admin user with a temporary password shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserCreateResult"
+        "400":
+          description: Validation failed or email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/users/{id}:
+    patch:
+      operationId: updateAdminUser
+      tags: [adminOps]
+      summary: Change role, company scope, name, or active status of an admin user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: Updated admin user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserSummary"
+        "400":
+          description: Validation failed or self-lockout prevented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/users/{id}/reset-password:
+    post:
+      operationId: resetAdminUserPassword
+      tags: [adminOps]
+      summary: Reset an admin user's password (returns a one-time temporary password)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: New temporary password shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserPasswordResult"
+        "403":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/users/me/password:
+    post:
+      operationId: changeOwnAdminPassword
+      tags: [adminOps]
+      summary: Change the current admin's own password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordChange"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+        "400":
+          description: Wrong current password or weak new password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/admin/permissions:
+    get:
+      operationId: getPermissionMatrix
+      tags: [adminOps]
+      summary: The full permission matrix plus the caller's row
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Permission matrix
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionMatrix"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    posKey:
+      type: http
+      scheme: bearer
+      description: A brand's POS key (POS_API_KEY_KFC or POS_API_KEY_PIZZA_HUT on the server)
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status: { type: string }
+      required: [status]
+    OkResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]
+    CardEmailResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        maskedDestination:
+          type: string
+          description: Masked address the card was sent to, safe to display.
+      required: [ok, maskedDestination]
+    ApiErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+          required: [code, message]
+      required: [error]
+    AssistantAskInput:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: The employee's question
+      required: [message]
+    AssistantAnswer:
+      type: object
+      properties:
+        reply: { type: string }
+        matched:
+          type: boolean
+          description: Whether the assistant recognized the question topic
+      required: [reply, matched]
+    LookupInput:
+      type: object
+      properties:
+        identifier:
+          type: string
+          minLength: 3
+          description: Email address or phone number
+      required: [identifier]
+    OtpSelectInput:
+      type: object
+      properties:
+        verificationId: { type: string }
+        optionRef:
+          type: string
+          description: The `ref` of one of the options /v1/otp/verify returned
+      required: [verificationId, optionRef]
+    OtpResendInput:
+      type: object
+      properties:
+        verificationId: { type: string }
+      required: [verificationId]
+    LookupOption:
+      type: object
+      description: Non-identifying disambiguation option
+      properties:
+        ref: { type: string }
+        label:
+          type: string
+          description: e.g. "J•••• D••••, born 19••-04"
+      required: [ref, label]
+    LookupResult:
+      type: object
+      description: >
+        Uniform shape whether or not a match exists. `lookupRef` and `options`
+        are always null now that record selection happens after verification;
+        they stay in the shape so the body never changes.
+      properties:
+        status:
+          type: string
+          enum: [CODE_SENT]
+        message: { type: string }
+        verificationId: { type: ["string", "null"] }
+        maskedDestination: { type: ["string", "null"] }
+        lookupRef: { type: ["string", "null"] }
+        options:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/LookupOption"
+        devCode:
+          type: ["string", "null"]
+          description: Plain OTP, only present when dev mode is on
+      required: [status, message, verificationId, maskedDestination, lookupRef, options, devCode]
+    OtpVerifyInput:
+      type: object
+      properties:
+        verificationId: { type: string }
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+      required: [verificationId, code]
+    OtpVerifyResult:
+      type: object
+      description: >
+        CARD carries the card session (cardToken, expiresAt, confirm). SELECT
+        carries `options` to pass to /v1/otp/select. MULTI_COMPANY carries only
+        `message`, which names no company.
+      properties:
+        status:
+          type: string
+          enum: [CARD, SELECT, MULTI_COMPANY]
+        cardToken: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"] }
+        confirm:
+          oneOf:
+            - $ref: "#/components/schemas/ConfirmInfo"
+            - type: "null"
+        options:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/LookupOption"
+        message: { type: ["string", "null"] }
+      required: [status, cardToken, expiresAt, confirm, options, message]
+    ConfirmInfo:
+      type: object
+      description: Minimal confirmation info shown after verification
+      properties:
+        firstName: { type: string }
+        maskedIdentifier: { type: string }
+        companyName: { type: string }
+      required: [firstName, maskedIdentifier, companyName]
+    CardDependent:
+      type: object
+      properties:
+        id:
+          type: string
+          description: >
+            The BHI DependentID, as a string. Needed so the member can name this
+            dependant in an RFM.
+        fullName:
+          type: string
+          description: DependentFullName — the BHI model keeps one name field
+        relationship: { type: string }
+        dateOfBirth: { type: ["string", "null"] }
+      required: [id, fullName, relationship, dateOfBirth]
+    CardBeneficiary:
+      type: object
+      properties:
+        fullName:
+          type: string
+          description: BeneficiaryFullName — the BHI model keeps one name field
+        relationship:
+          type: ["string", "null"]
+          description: >
+            Null for a beneficiary loaded from the carrier's Beneficiaries
+            sheet, which has no Relationship column.
+        allocationPercent: { type: ["number", "null"] }
+      required: [fullName, relationship, allocationPercent]
+    CardIssuer:
+      type: object
+      description: >
+        Who issued the card, as the deployment is configured (ISSUER_* in the
+        API environment). Every field may be absent; the card renders what it
+        is given and omits the rest rather than showing another insurer's
+        details.
+      properties:
+        address: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        signatoryName: { type: ["string", "null"] }
+        signatoryTitle: { type: ["string", "null"] }
+        planTitle: { type: string }
+        propertyNotice: { type: ["string", "null"] }
+      required:
+        [address, phone, signatoryName, signatoryTitle, planTitle, propertyNotice]
+    CardPayload:
+      type: object
+      properties:
+        insurerName: { type: string }
+        planName: { type: string }
+        policyholder: { type: string }
+        policyNumber: { type: string }
+        groupNumber: { type: string }
+        memberId: { type: string }
+        certificateNumber: { type: string }
+        employeeName: { type: string }
+        identificationId: { type: string }
+        idType:
+          type: string
+          description: The member's ID type (e.g. NATIONAL ID, PASSPORT, E-ID); labels the ID number on the card
+        classCode: { type: string }
+        dateOfBirth: { type: ["string", "null"] }
+        effectiveDate: { type: string }
+        expiryDate: { type: ["string", "null"] }
+        companyName: { type: string }
+        dependents:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardDependent"
+        beneficiaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardBeneficiary"
+        issuer:
+          $ref: "#/components/schemas/CardIssuer"
+        backNotice: { type: string }
+        sessionExpiresAt: { type: string }
+      required:
+        [insurerName, planName, policyholder, policyNumber, groupNumber, memberId,
+         certificateNumber, employeeName, identificationId, idType, classCode, dateOfBirth,
+         effectiveDate, expiryDate, companyName, dependents, beneficiaries, issuer, backNotice,
+         sessionExpiresAt]
+    AdminLoginInput:
+      type: object
+      properties:
+        email: { type: string }
+        password: { type: string }
+      required: [email, password]
+    AdminLoginResult:
+      type: object
+      properties:
+        token: { type: string }
+        role: { type: string }
+        scope:
+          type: ["string", "null"]
+          description: Company code, or null for all companies
+        displayName: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+        mustChangePassword:
+          type: boolean
+          description: When true, the admin must change their temporary password before using the portal
+      required: [token, role, scope, displayName, permissions, mustChangePassword]
+    AdminMe:
+      type: object
+      properties:
+        email: { type: string }
+        displayName: { type: string }
+        role: { type: string }
+        roleLabel:
+          type: string
+          description: e.g. "Super admin" for ROLE_PLATFORM_ADMIN
+        scope:
+          type: ["string", "null"]
+          description: The one company of an HR administrator or client admin; null otherwise
+        scopeCompanyName: { type: ["string", "null"] }
+        companies:
+          type: ["array", "null"]
+          description: The company numbers this admin reaches, or null for every company
+          items: { type: string }
+        readOnly:
+          type: boolean
+          description: True for support and auditor, which may read every company but change nothing
+        permissions:
+          type: array
+          items: { type: string }
+      required:
+        [email, displayName, role, roleLabel, scope, scopeCompanyName,
+         companies, readOnly, permissions]
+    Company:
+      type: object
+      properties:
+        companyNumber: { type: string }
+        companyName: { type: string }
+        active: { type: boolean }
+        address1: { type: ["string", "null"] }
+        address2: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        contactName: { type: ["string", "null"] }
+        contactPhone: { type: ["string", "null"] }
+        contactEmail: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        activeMembers: { type: number }
+        inactiveMembers: { type: number }
+      required: [companyNumber, companyName, active, address1, address2, city, contactName, contactPhone, contactEmail, notes, activeMembers, inactiveMembers]
+    DashboardStats:
+      type: object
+      properties:
+        totalMembers:
+          type: number
+          description: Every member in the scope, active or not
+        activeMembers: { type: number }
+        inactiveMembers:
+          type: number
+          description: >
+            Members with Active = false — deactivated by an administrator or aged
+            out at 65. Their records are retained.
+        totalDependents:
+          type: number
+          description: Active dependants of active members
+        expiredPolicyCount: { type: number }
+        membersWithoutDateOfBirth:
+          type: number
+          description: >
+            Active members with no date of birth. Cover ends at 65, so these can
+            never be retired and are billed until someone adds one. New members
+            cannot be created without it.
+        verificationsToday: { type: number }
+        lockedVerifications: { type: number }
+        openLookupAlerts:
+          type: ["number", "null"]
+          description: >
+            Open multi-company lookup alerts. Sent to super admins only; null
+            for every other role.
+        openImportExceptions:
+          type: number
+          description: Records held by bulk import or the migration, not yet fixed, across the scope.
+        draftBillingRuns:
+          type: ["number", "null"]
+          description: Draft (not yet final) billing runs in scope. Null without BILLING_READ.
+        unpricedMembers:
+          type: ["number", "null"]
+          description: Members without a rate in the latest draft runs in scope. Null without BILLING_READ.
+        recentAudit:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntry"
+        byCompany:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyCount"
+      required:
+        [totalMembers, activeMembers, inactiveMembers, totalDependents,
+         expiredPolicyCount, membersWithoutDateOfBirth, verificationsToday, lockedVerifications,
+         openLookupAlerts, openImportExceptions, draftBillingRuns, unpricedMembers,
+         recentAudit, byCompany]
+    CompanyCount:
+      type: object
+      properties:
+        companyNumber: { type: string }
+        companyName: { type: string }
+        memberCount: { type: number }
+        activeCount: { type: number }
+      required: [companyNumber, companyName, memberCount, activeCount]
+    MemberSummary:
+      type: object
+      properties:
+        memberId: { type: number }
+        companyNumber: { type: string }
+        companyName: { type: string }
+        idType: { type: string }
+        idNumber: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        classCode: { type: string }
+        email:
+          type: ["string", "null"]
+          description: Masked for roles without CONTACT_UNMASK
+        phone: { type: ["string", "null"] }
+        active: { type: boolean }
+        activeDependentCount: { type: number }
+        policyStatus:
+          type: string
+          enum: [ON_FILE, EXPIRED, NONE]
+          description: >
+            ON_FILE — a policy that has not expired; EXPIRED — only policies past
+            their expiry date; NONE — no policy, so the member's card lookup
+            finds no active policy.
+      required:
+        [memberId, companyNumber, companyName, idType, idNumber, firstName,
+         lastName, classCode, email, phone, active, activeDependentCount, policyStatus]
+    MemberPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberSummary"
+        page: { type: number }
+        pageSize: { type: number }
+        totalItems: { type: number }
+        totalPages: { type: number }
+      required: [items, page, pageSize, totalItems, totalPages]
+    Dependent:
+      type: object
+      properties:
+        dependentId: { type: number }
+        fullName: { type: string }
+        relationship: { type: string }
+        dateOfBirth: { type: ["string", "null"] }
+        idType: { type: ["string", "null"] }
+        idNumber: { type: ["string", "null"] }
+        sex: { type: ["string", "null"] }
+        active: { type: boolean }
+        inactiveDate: { type: ["string", "null"] }
+        inactiveReason: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+      required:
+        [dependentId, fullName, relationship, dateOfBirth, idType, idNumber, sex,
+         active, inactiveDate, inactiveReason, notes]
+    Beneficiary:
+      type: object
+      properties:
+        beneficiaryId: { type: number }
+        fullName: { type: string }
+        relationship:
+          type: ["string", "null"]
+          description: >
+            Null for a beneficiary loaded from the carrier's Beneficiaries
+            sheet, which has no Relationship column.
+        dateOfBirth: { type: ["string", "null"] }
+        idType: { type: ["string", "null"] }
+        idNumber: { type: ["string", "null"] }
+        sex: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        sharePercent: { type: ["number", "null"] }
+        active: { type: boolean }
+        inactiveDate: { type: ["string", "null"] }
+        inactiveReason: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+      required:
+        [beneficiaryId, fullName, relationship, dateOfBirth, idType, idNumber,
+         sex, phone, email, sharePercent, active, inactiveDate, inactiveReason,
+         notes]
+    BeneficiaryCreate:
+      type: object
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 120 }
+        relationship:
+          type: ["string", "null"]
+          enum: [SPOUSE, CHILD, PARENT, SIBLING, ESTATE, OTHER, null]
+        dateOfBirth: { type: ["string", "null"] }
+        idType:
+          oneOf:
+            - $ref: "#/components/schemas/IdType"
+            - type: "null"
+        idNumber: { type: ["string", "null"], maxLength: 40 }
+        sex: { type: ["string", "null"], maxLength: 10 }
+        phone: { type: ["string", "null"], maxLength: 50 }
+        email: { type: ["string", "null"], maxLength: 100 }
+        sharePercent:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+        notes: { type: ["string", "null"] }
+        reason:
+          type: string
+          minLength: 3
+      required: [fullName, reason]
+    BeneficiaryUpdate:
+      type: object
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 120 }
+        relationship:
+          type: ["string", "null"]
+          enum: [SPOUSE, CHILD, PARENT, SIBLING, ESTATE, OTHER, null]
+        dateOfBirth: { type: ["string", "null"] }
+        idType:
+          oneOf:
+            - $ref: "#/components/schemas/IdType"
+            - type: "null"
+        idNumber: { type: ["string", "null"], maxLength: 40 }
+        sex: { type: ["string", "null"], maxLength: 10 }
+        phone: { type: ["string", "null"], maxLength: 50 }
+        email: { type: ["string", "null"], maxLength: 100 }
+        sharePercent:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+        notes: { type: ["string", "null"] }
+        reason:
+          type: string
+          minLength: 3
+      required: [reason]
+    Policy:
+      type: object
+      properties:
+        policyholder: { type: string }
+        policyNumber: { type: string }
+        groupNumber: { type: string }
+        memberId: { type: string }
+        certificateNumber: { type: string }
+        planName: { type: string }
+        effectiveDate: { type: string }
+        expiryDate: { type: ["string", "null"] }
+        insurerName: { type: string }
+      required:
+        [policyholder, policyNumber, groupNumber, memberId, certificateNumber,
+         planName, effectiveDate, expiryDate, insurerName]
+    BillingTier:
+      type: object
+      description: >
+        The premium tier a member's active dependants put them in (spec FR-022):
+        0 Employee only, 1 +1, 2 +2, 3 more than two.
+      properties:
+        dependentBand: { type: number }
+        coverageBand: { type: string }
+        coverageLabel: { type: string }
+      required: [dependentBand, coverageBand, coverageLabel]
+    MemberDetail:
+      type: object
+      properties:
+        memberId: { type: number }
+        companyNumber: { type: string }
+        companyName: { type: string }
+        idType: { type: string }
+        idNumber: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        middleInitials: { type: ["string", "null"] }
+        dateOfBirth: { type: ["string", "null"] }
+        sex: { type: ["string", "null"] }
+        classCode: { type: string }
+        className: { type: string }
+        addressLine1: { type: ["string", "null"] }
+        addressLine2: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        employmentDate: { type: ["string", "null"] }
+        planDate: { type: ["string", "null"] }
+        rateOfPay:
+          type: ["string", "null"]
+          description: Money (15,2), as a decimal string so no cent is lost
+        occupation: { type: ["string", "null"] }
+        active:
+          type: boolean
+          description: The BHI Active flag — the only member status (spec FR-038)
+        inactiveDate: { type: ["string", "null"] }
+        inactiveReason: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        activeDependentCount: { type: number }
+        currentTier:
+          $ref: "#/components/schemas/BillingTier"
+        sharedContactAlert:
+          type: boolean
+          description: >
+            True when an open multi-company lookup alert involves this member.
+            Company-scoped users see only this flag, never the other company.
+        policy:
+          oneOf:
+            - $ref: "#/components/schemas/Policy"
+            - type: "null"
+        dependents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dependent"
+        beneficiaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Beneficiary"
+        createdAt: { type: ["string", "null"] }
+        updatedAt: { type: ["string", "null"] }
+      required:
+        [memberId, companyNumber, companyName, idType, idNumber, firstName,
+         lastName, middleInitials, dateOfBirth, sex, classCode, className,
+         addressLine1, addressLine2, email, phone, employmentDate, planDate,
+         rateOfPay, occupation, active, inactiveDate, inactiveReason, notes,
+         activeDependentCount, currentTier, sharedContactAlert, policy,
+         dependents, beneficiaries, createdAt, updatedAt]
+    MemberFields:
+      type: object
+      description: The editable BHI Member fields, with the Access file's sizes.
+      properties:
+        idType:
+          $ref: "#/components/schemas/IdType"
+        idNumber: { type: string, minLength: 1, maxLength: 40 }
+        firstName: { type: string, minLength: 1, maxLength: 80 }
+        lastName: { type: string, minLength: 1, maxLength: 80 }
+        middleInitials: { type: ["string", "null"], maxLength: 20 }
+        dateOfBirth:
+          type: ["string", "null"]
+          description: >
+            YYYY-MM-DD, or any format the member importer accepts. Required for
+            a new member (cover ends at 65); once recorded it can be corrected
+            but not cleared.
+        sex: { type: ["string", "null"], maxLength: 10 }
+        classCode:
+          type: string
+          minLength: 1
+          maxLength: 1
+          description: Must be an active class with its four tier rates in place
+        addressLine1: { type: ["string", "null"], maxLength: 150 }
+        addressLine2: { type: ["string", "null"], maxLength: 150 }
+        email: { type: ["string", "null"], maxLength: 100 }
+        phone: { type: ["string", "null"], maxLength: 50 }
+        employmentDate: { type: ["string", "null"] }
+        planDate: { type: ["string", "null"] }
+        rateOfPay:
+          type: ["string", "null"]
+          description: Decimal string, up to 13 digits and 2 decimals
+        occupation: { type: ["string", "null"], maxLength: 100 }
+        notes: { type: ["string", "null"] }
+    MemberUpdate:
+      description: >
+        Any MemberFields to change, plus a reason. Whether the member is active
+        is changed only by /deactivate and /reactivate, so every status change
+        has a reason and a history row.
+      allOf:
+        - $ref: "#/components/schemas/MemberFields"
+        - type: object
+          properties:
+            reason:
+              type: string
+              minLength: 3
+          required: [reason]
+    MemberCreate:
+      description: A hand-created member of the company in the path.
+      allOf:
+        - $ref: "#/components/schemas/MemberFields"
+        - type: object
+          properties:
+            dependants:
+              type: array
+              description: >
+                Dependants to create alongside the member, in the same
+                transaction: if any is rejected, the member is not created
+                either.
+              items:
+                $ref: "#/components/schemas/MemberCreateDependant"
+            reason:
+              type: string
+              minLength: 3
+          required: [idType, idNumber, firstName, lastName, classCode, dateOfBirth, reason]
+    MemberCreateDependant:
+      type: object
+      description: One dependant supplied while creating a member.
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 120 }
+        relationship:
+          $ref: "#/components/schemas/DependentRelationship"
+        dateOfBirth:
+          type: ["string", "null"]
+          description: YYYY-MM-DD, or any format the member importer accepts
+        idType:
+          oneOf:
+            - $ref: "#/components/schemas/IdType"
+            - type: "null"
+        idNumber: { type: ["string", "null"], maxLength: 40 }
+        sex: { type: ["string", "null"], maxLength: 10 }
+      required: [fullName, relationship]
+    DeactivateInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 3
+        effectiveDate:
+          type: ["string", "null"]
+          description: InactiveDate, YYYY-MM-DD; defaults to today in Guyana
+      required: [reason]
+    MemberPolicyInput:
+      type: object
+      description: >
+        Creates the member's policy if absent, otherwise replaces it. Without a
+        policy a member passes verification but cannot be shown a card.
+      properties:
+        policyholder: { type: string, minLength: 1 }
+        policyNumber: { type: string, minLength: 1 }
+        groupNumber: { type: string, minLength: 1 }
+        memberNumber: { type: string, minLength: 1 }
+        certificateNumber: { type: string, minLength: 1 }
+        planName: { type: string, minLength: 1 }
+        insurerName: { type: string, minLength: 1 }
+        effectiveDate: { type: string, minLength: 1 }
+        expiryDate: { type: ["string", "null"] }
+        reason:
+          type: string
+          minLength: 3
+      required:
+        [policyholder, policyNumber, groupNumber, memberNumber,
+         certificateNumber, planName, insurerName, effectiveDate, expiryDate,
+         reason]
+    VerificationUnlockResult:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string }
+        attempts: { type: number }
+        expiresAt: { type: string }
+        message:
+          type: string
+          description: What to tell the member, since no new code is sent
+      required: [id, status, attempts, expiresAt, message]
+    DependentCreate:
+      type: object
+      description: A new dependant of the member, plus a reason. It starts active.
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 120 }
+        relationship:
+          $ref: "#/components/schemas/DependentRelationship"
+        dateOfBirth: { type: ["string", "null"] }
+        idType:
+          oneOf:
+            - $ref: "#/components/schemas/IdType"
+            - type: "null"
+        idNumber: { type: ["string", "null"], maxLength: 40 }
+        sex: { type: ["string", "null"], maxLength: 10 }
+        notes: { type: ["string", "null"] }
+        reason:
+          type: string
+          minLength: 3
+      required: [fullName, relationship, reason]
+    DependentUpdate:
+      type: object
+      description: >
+        Fields to change, plus a reason. Whether the dependant is active is
+        changed only by /deactivate and /reactivate.
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 120 }
+        relationship:
+          $ref: "#/components/schemas/DependentRelationship"
+        dateOfBirth: { type: ["string", "null"] }
+        idType:
+          oneOf:
+            - $ref: "#/components/schemas/IdType"
+            - type: "null"
+        idNumber: { type: ["string", "null"], maxLength: 40 }
+        sex: { type: ["string", "null"], maxLength: 10 }
+        notes: { type: ["string", "null"] }
+        reason:
+          type: string
+          minLength: 3
+      required: [reason]
+    ReasonInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 3
+      required: [reason]
+    DependentRelationship:
+      type: string
+      description: >
+        The Access database's DependentRelationship list, which prints on the
+        card face. What an admin or employee may choose; a dependant stored
+        before this list (CHILD, FATHER, MOTHER, BROTHER, SISTER) keeps its value
+        until it is edited, so responses carry relationship as a plain string.
+      enum: [SPOUSE, SON, DAUGHTER, OTHER]
+    IdType:
+      type: string
+      description: >
+        The Access database's IDType list (National ID, Passport, E-ID), stored
+        upper-case exactly as the carrier import writes it, so a member entered
+        by hand and the same member in a later import match. Required of what an
+        admin enters; records loaded earlier may hold other values, and responses
+        carry idType as a plain string.
+      enum: ["NATIONAL ID", PASSPORT, E-ID]
+    ChangeRequestDocumentType:
+      type: string
+      enum:
+        - NATIONAL_ID
+        - DRIVERS_LICENCE
+        - PASSPORT
+        - BIRTH_CERTIFICATE
+        - MARRIAGE_CERTIFICATE
+        - OTHER
+    ChangeRequestDocumentInput:
+      type: object
+      description: >
+        The supporting proof, sent inline as base64 so the request and its
+        document commit in one transaction. Max 5 MB decoded; PDF, JPEG and PNG
+        only, verified against the file's magic bytes rather than this
+        declaration.
+      properties:
+        documentType:
+          $ref: "#/components/schemas/ChangeRequestDocumentType"
+        fileName: { type: string, minLength: 1 }
+        mimeType:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png]
+        contentBase64: { type: string, minLength: 1 }
+      required: [documentType, fileName, mimeType, contentBase64]
+    ChangeRequestCreate:
+      type: object
+      description: >
+        Set `dependentId` to correct a dependant, or leave it null to correct
+        your own record. At least one requested field must be present and must
+        differ from the current value. A dependant has one full-name field, so
+        for a dependant the requested first and last names are joined into it.
+      properties:
+        dependentId:
+          type: ["string", "null"]
+          description: >
+            One of the member's own dependants (the card's CardDependent.id), or
+            null for the member
+        requestedFirstName: { type: ["string", "null"] }
+        requestedLastName: { type: ["string", "null"] }
+        requestedDateOfBirth: { type: ["string", "null"] }
+        requestedRelationship:
+          oneOf:
+            - $ref: "#/components/schemas/DependentRelationship"
+            - type: "null"
+          description: Dependants only; ignored for a member subject
+        employeeNote: { type: ["string", "null"] }
+        document:
+          $ref: "#/components/schemas/ChangeRequestDocumentInput"
+      required:
+        [dependentId, requestedFirstName, requestedLastName,
+         requestedDateOfBirth, requestedRelationship, employeeNote, document]
+    OwnChangeRequest:
+      type: object
+      description: >
+        The member's view of their own request. Deliberately omits the
+        reviewer's identity.
+      properties:
+        id: { type: string }
+        subjectType:
+          type: string
+          enum: [MEMBER, DEPENDENT]
+        subjectName: { type: string }
+        requestedFirstName: { type: ["string", "null"] }
+        requestedLastName: { type: ["string", "null"] }
+        requestedDateOfBirth: { type: ["string", "null"] }
+        requestedRelationship: { type: ["string", "null"] }
+        employeeNote: { type: ["string", "null"] }
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        reviewNote: { type: ["string", "null"] }
+        documentFileName: { type: ["string", "null"] }
+        createdAt: { type: string }
+        reviewedAt: { type: ["string", "null"] }
+      required:
+        [id, subjectType, subjectName, requestedFirstName, requestedLastName,
+         requestedDateOfBirth, requestedRelationship, employeeNote, status,
+         reviewNote, documentFileName, createdAt, reviewedAt]
+    DiscountBrand:
+      type: string
+      enum: [KFC, PIZZA_HUT]
+    DiscountBrandInfo:
+      type: object
+      properties:
+        brand: { $ref: "#/components/schemas/DiscountBrand" }
+        name: { type: string }
+      required: [brand, name]
+    OwnDiscountCoupon:
+      type: object
+      description: >
+        A coupon as its member sees it. The code is never included — it is
+        returned once, when generated, and stored only as a hash.
+      properties:
+        id: { type: string }
+        brand: { $ref: "#/components/schemas/DiscountBrand" }
+        status:
+          type: string
+          description: EXPIRED is an ACTIVE coupon past expiresAt.
+          enum: [ACTIVE, EXPIRED, REDEEMED, VOIDED, CANCELLED]
+        discountPercent: { type: number }
+        createdAt: { type: string }
+        expiresAt: { type: string }
+        redeemedAt: { type: ["string", "null"] }
+        billAmount: { type: ["number", "null"] }
+        discountAmount: { type: ["number", "null"] }
+      required:
+        [id, brand, status, discountPercent, createdAt, expiresAt, redeemedAt,
+         billAmount, discountAmount]
+    OwnDiscountCouponPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OwnDiscountCoupon" }
+        page: { type: number }
+        pageSize: { type: number }
+        totalItems: { type: number }
+        totalPages: { type: number }
+      required: [items, page, pageSize, totalItems, totalPages]
+    DiscountSummary:
+      type: object
+      properties:
+        discountPercent: { type: number }
+        currency: { type: string, description: Always GYD }
+        monthlyCap: { type: number, description: "The most discount a member can receive in a month, all brands together" }
+        month: { type: string, description: "The current month in Guyana time, YYYY-MM" }
+        usedThisMonth: { type: number }
+        remainingThisMonth: { type: number }
+        couponTtlMinutes: { type: number }
+        brands:
+          type: array
+          items: { $ref: "#/components/schemas/DiscountBrandInfo" }
+        coupons:
+          type: array
+          description: The member's 20 most recent coupons, newest first
+          items: { $ref: "#/components/schemas/OwnDiscountCoupon" }
+      required:
+        [discountPercent, currency, monthlyCap, month, usedThisMonth,
+         remainingThisMonth, couponTtlMinutes, brands, coupons]
+    GenerateCouponInput:
+      type: object
+      properties:
+        brand: { $ref: "#/components/schemas/DiscountBrand" }
+      required: [brand]
+    GeneratedCoupon:
+      type: object
+      properties:
+        code:
+          type: string
+          description: "What the QR code encodes, e.g. K7PQ-3MZX-9TRA. Shown once."
+        coupon: { $ref: "#/components/schemas/OwnDiscountCoupon" }
+        remainingThisMonth: { type: number }
+      required: [code, coupon, remainingThisMonth]
+    PosCheckInput:
+      type: object
+      properties:
+        code: { type: string, minLength: 1, maxLength: 64, description: "As scanned; hyphens, spaces and case are ignored" }
+        billAmount: { type: number, exclusiveMinimum: 0, maximum: 100000000, description: "GYD, before discount" }
+      required: [code]
+    PosQuote:
+      type: object
+      properties:
+        billAmount: { type: number }
+        fullDiscountAmount: { type: number, description: "What the percentage alone would give" }
+        discountAmount: { type: number, description: "What would actually be given: less than fullDiscountAmount when capApplied" }
+        amountPayable: { type: number }
+        capApplied:
+          type: boolean
+          description: >
+            True when the remaining allowance, not the percentage, sets the
+            discount. Redeem then needs confirmPartialDiscount: true.
+        message: { type: string, description: "The line to show the cashier; asks for confirmation when capApplied" }
+      required: [billAmount, fullDiscountAmount, discountAmount, amountPayable, capApplied, message]
+    PosCheckResult:
+      type: object
+      properties:
+        couponId: { type: string }
+        brand: { $ref: "#/components/schemas/DiscountBrand" }
+        discountPercent: { type: number }
+        expiresAt: { type: string }
+        remainingAllowance: { type: number }
+        quote:
+          oneOf:
+            - $ref: "#/components/schemas/PosQuote"
+            - type: "null"
+      required: [couponId, brand, discountPercent, expiresAt, remainingAllowance, quote]
+    PosRedeemInput:
+      type: object
+      properties:
+        code: { type: string, minLength: 1, maxLength: 64 }
+        billAmount: { type: number, exclusiveMinimum: 0, maximum: 100000000, description: "GYD, before discount" }
+        posReference: { type: string, minLength: 1, maxLength: 100, description: "The till's receipt or order number" }
+        posStore: { type: string, maxLength: 100, description: "Store or till identifier" }
+        confirmPartialDiscount:
+          type: boolean
+          description: >
+            The cashier agreed to apply less than the full percentage because
+            the employee's allowance cannot cover it. Without it such a
+            redemption is refused with PARTIAL_DISCOUNT_NOT_CONFIRMED and
+            nothing is recorded.
+      required: [code, billAmount, posReference]
+    PosRedemption:
+      type: object
+      properties:
+        couponId: { type: string }
+        brand: { $ref: "#/components/schemas/DiscountBrand" }
+        discountPercent: { type: number }
+        billAmount: { type: number }
+        fullDiscountAmount: { type: number, description: "What the percentage alone would have given" }
+        discountAmount: { type: number }
+        amountPayable: { type: number }
+        capApplied: { type: boolean }
+        posReference: { type: string }
+        redeemedAt: { type: string }
+        remainingAllowance: { type: number, description: "The member's allowance left this month after this redemption" }
+      required:
+        [couponId, brand, discountPercent, billAmount, fullDiscountAmount, discountAmount,
+         amountPayable, capApplied, posReference, redeemedAt, remainingAllowance]
+    PosVoidInput:
+      type: object
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
+      required: [reason]
+    PosVoidResult:
+      type: object
+      properties:
+        couponId: { type: string }
+        status: { type: string, enum: [VOIDED] }
+        voidedAt: { type: string }
+      required: [couponId, status, voidedAt]
+    ChangeRequestFieldChange:
+      type: object
+      properties:
+        field:
+          type: string
+          description: fullName applies to a dependant, whose name is one field
+          enum: [firstName, lastName, fullName, dateOfBirth, relationship]
+        current: { type: ["string", "null"] }
+        requested: { type: string }
+      required: [field, current, requested]
+    ChangeRequestSummary:
+      type: object
+      properties:
+        id: { type: string }
+        memberId: { type: number }
+        memberName: { type: string }
+        companyNumber: { type: string }
+        companyName: { type: string }
+        subjectType:
+          type: string
+          enum: [MEMBER, DEPENDENT]
+        subjectName: { type: string }
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChangeRequestFieldChange"
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        hasDocument: { type: boolean }
+        createdAt: { type: string }
+        reviewedAt:
+          type: ["string", "null"]
+          description: When the request was approved or rejected; null while pending.
+        reviewer:
+          description: >
+            Who approved or rejected the request. Sent only to super admins,
+            who oversee every company's reviewers; null for every other role
+            and while the request is pending.
+          oneOf:
+            - $ref: "#/components/schemas/ChangeRequestReviewer"
+            - type: "null"
+      required:
+        [id, memberId, memberName, companyNumber, companyName,
+         subjectType, subjectName, changes, status, hasDocument, createdAt]
+    ChangeRequestReviewer:
+      type: object
+      properties:
+        email: { type: string }
+        name:
+          type: string
+          description: The admin's display name, or their email if the account no longer exists.
+        role:
+          type: ["string", "null"]
+          description: The admin's current role, e.g. ROLE_HR_ADMIN; null if the account no longer exists.
+      required: [email, name, role]
+    ChangeRequestPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChangeRequestSummary"
+        page: { type: number }
+        pageSize: { type: number }
+        totalItems: { type: number }
+        totalPages: { type: number }
+      required: [items, page, pageSize, totalItems, totalPages]
+    ChangeRequestDocumentMeta:
+      type: object
+      properties:
+        id: { type: string }
+        documentType: { type: string }
+        fileName: { type: string }
+        mimeType: { type: string }
+        byteSize: { type: number }
+        sha256: { type: string }
+        purged: { type: boolean }
+      required: [id, documentType, fileName, mimeType, byteSize, sha256, purged]
+    ChangeRequestDocumentContent:
+      type: object
+      properties:
+        fileName: { type: string }
+        mimeType:
+          type: string
+          description: Sniffed on upload; use this for the Blob type
+        byteSize: { type: number }
+        contentBase64: { type: string }
+      required: [fileName, mimeType, byteSize, contentBase64]
+    ChangeRequestDetail:
+      type: object
+      properties:
+        id: { type: string }
+        memberId: { type: number }
+        memberName: { type: string }
+        companyNumber: { type: string }
+        companyName: { type: string }
+        subjectType:
+          type: string
+          enum: [MEMBER, DEPENDENT]
+        subjectName: { type: string }
+        dependentId: { type: ["number", "null"] }
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChangeRequestFieldChange"
+        employeeNote: { type: ["string", "null"] }
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        reviewedBy: { type: ["string", "null"] }
+        reviewedAt: { type: ["string", "null"] }
+        reviewNote: { type: ["string", "null"] }
+        document:
+          oneOf:
+            - $ref: "#/components/schemas/ChangeRequestDocumentMeta"
+            - type: "null"
+        createdAt: { type: string }
+      required:
+        [id, memberId, memberName, companyNumber, companyName,
+         subjectType, subjectName, dependentId, changes, employeeNote, status,
+         reviewedBy, reviewedAt, reviewNote, document, createdAt]
+    ChangeRequestDecision:
+      type: object
+      properties:
+        note:
+          type: string
+          minLength: 3
+          description: Recorded on the request and reused as the audit reason
+      required: [note]
+    ImportInput:
+      type: object
+      description: >
+        Supply exactly one of `sheets`, `rows` or `csvText`. Only the carrier
+        layouts are accepted — Members, Dependants and Beneficiaries — detected
+        from each header row. The old 8-column members layout is withdrawn and
+        returns 400 LAYOUT_WITHDRAWN. GET /v1/admin/import/layouts lists them.
+      properties:
+        csvText:
+          type: string
+          description: Raw CSV text. Ignored when `rows` is present.
+        rows:
+          type: array
+          description: >
+            A single pre-parsed sheet, row 0 being the header. Retained for
+            single-sheet uploads; prefer `sheets` for a workbook.
+          items:
+            type: array
+            items: { type: string }
+        sheets:
+          type: array
+          description: >
+            Every sheet of an uploaded workbook. Members are committed first, so
+            a dependant or beneficiary can reference a member created by the
+            same import.
+          items:
+            $ref: "#/components/schemas/ImportSheet"
+        fileName:
+          type: string
+          description: >
+            The uploaded file's name, kept on the import batch. The batch's
+            source file name is generated by the server.
+        dryRun: { type: boolean }
+        confirmUpdates:
+          type: boolean
+          description: >
+            Required (true) to commit a file in which some rows match records
+            already on file and would update them; otherwise the commit answers
+            409 UPDATES_NOT_CONFIRMED. Ignored on a dry run.
+        layout:
+          type: string
+          enum: [CARRIER, DEPENDANT, BENEFICIARY]
+          description: >
+            Read only the sheets in this layout and ignore the rest of the
+            workbook (the Import screen's Members, Dependants and Beneficiaries
+            tabs). 400 BAD_HEADER when no sheet is in it. Omitted, every
+            recognised sheet is read.
+      required: [dryRun]
+    ImportSheet:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The worksheet name, echoed back in the result for context
+        rows:
+          type: array
+          description: Row 0 is the header. Cells are strings; dates must be YYYY-MM-DD.
+          items:
+            type: array
+            items: { type: string }
+      required: [name, rows]
+    ImportLayoutDescriptor:
+      type: object
+      properties:
+        layout:
+          type: string
+          enum: [CARRIER, DEPENDANT, BENEFICIARY]
+        label:
+          type: string
+          description: What to call this sheet on screen, e.g. "Beneficiaries".
+        columns:
+          type: array
+          description: >
+            The header row this layout expects, in template order. A column may
+            appear twice — the Beneficiaries sheet carries LastName and
+            FirstName once for the member and once for the beneficiary.
+          items: { type: string }
+        description: { type: string }
+      required: [layout, label, columns, description]
+    ImportLayoutList:
+      type: object
+      properties:
+        layouts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportLayoutDescriptor"
+      required: [layouts]
+    ImportSheetResult:
+      type: object
+      properties:
+        name: { type: string }
+        layout:
+          type: string
+          enum: [CARRIER, DEPENDANT, BENEFICIARY]
+        totalRows: { type: number }
+        okCount: { type: number }
+        warnCount: { type: number }
+        errorCount: { type: number }
+        duplicateCount: { type: number }
+        invalidPhoneCount: { type: number }
+        heldCount:
+          type: number
+          description: Error rows that are (or, on a dry run, would be) held in the company's fix list.
+        existingCount:
+          type: number
+          description: Rows of this sheet matching records already in the system.
+        committedCount: { type: number }
+        message: { type: ["string", "null"] }
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowResult"
+      required:
+        [name, layout, totalRows, okCount, warnCount, errorCount,
+         duplicateCount, invalidPhoneCount, heldCount, existingCount, committedCount, message, rows]
+    ImportRowResult:
+      type: object
+      properties:
+        rowNumber: { type: number }
+        status:
+          type: string
+          enum: [OK, WARN, ERROR]
+        message: { type: string }
+        companyNumber: { type: ["string", "null"] }
+        idNumber:
+          type: ["string", "null"]
+          description: The member's ID number (for a dependant or beneficiary row, its member's).
+        name: { type: ["string", "null"] }
+        reasonCodes:
+          type: array
+          description: >
+            Why an ERROR row cannot be loaded — e.g. MISSING_ID_TYPE,
+            MISSING_CLASS, VALUE_TOO_LONG, UNKNOWN_CLASS, ID_ALREADY_REGISTERED.
+            Empty for OK and WARN rows.
+          items: { type: string }
+        duplicate:
+          type: boolean
+          description: >
+            True when the row repeats an earlier row of the file, or its ID is
+            already registered to a member of another company. A subset of the
+            ERROR rows.
+        invalidPhone:
+          type: boolean
+          description: True when the row was rejected only for an undeliverable member phone number.
+        held:
+          type: boolean
+          description: >
+            True when the ERROR row is (or would be) written to the company's
+            import exceptions for HR to fix and upload again.
+        existingRecord:
+          type: boolean
+          description: The row matches a member, dependant or beneficiary already in the system and updates it.
+        changedFields:
+          type: array
+          description: For an existing member, the columns the row would change; empty when it matches the record.
+          items: { type: string }
+        recordType:
+          type: string
+          enum: [MEMBER, DEPENDENT, BENEFICIARY]
+        resolvesExceptionId:
+          type: ["number", "null"]
+          description: The open import exception this row fixes, if any.
+      required:
+        [rowNumber, status, message, companyNumber, idNumber, name, reasonCodes,
+         duplicate, invalidPhone, held, existingRecord, changedFields, recordType,
+         resolvesExceptionId]
+    ImportResolvedException:
+      type: object
+      properties:
+        exceptionId: { type: number }
+        companyNumber: { type: string }
+        memberId: { type: number }
+        personName: { type: ["string", "null"] }
+        restoredDependents: { type: number }
+        restoredBeneficiaries: { type: number }
+      required:
+        [exceptionId, companyNumber, memberId, personName, restoredDependents,
+         restoredBeneficiaries]
+    ImportBatchSummary:
+      type: object
+      properties:
+        companyNumber: { type: string }
+        sourceFile: { type: ["string", "null"] }
+        saved:
+          type: boolean
+          description: False when a write failed and nothing for this company was saved.
+        message: { type: ["string", "null"] }
+      required: [companyNumber, sourceFile, saved, message]
+    ImportResult:
+      type: object
+      properties:
+        dryRun: { type: boolean }
+        layout:
+          type: string
+          enum: [CARRIER, DEPENDANT, BENEFICIARY]
+          description: >
+            The layout of the first members sheet, or of the first sheet when
+            the file carried none. Use `sheets[].layout` for a workbook.
+        totalRows: { type: number }
+        okCount: { type: number }
+        warnCount: { type: number }
+        errorCount: { type: number }
+        duplicateCount: { type: number }
+        invalidPhoneCount: { type: number }
+        heldCount:
+          type: number
+          description: Error rows held (or, on a dry run, to be held) as import exceptions.
+        existingCount:
+          type: number
+          description: Rows matching records already in the system, which the import would update.
+        committedCount: { type: number }
+        resolvedExceptions:
+          type: array
+          description: >
+            Open exceptions fixed by this import. On a dry run, the exceptions
+            that would be fixed, with memberId 0 and the restore counts those
+            the snapshot holds.
+          items:
+            $ref: "#/components/schemas/ImportResolvedException"
+        batches:
+          type: array
+          description: One import batch per company the commit touched. Empty on a dry run.
+          items:
+            $ref: "#/components/schemas/ImportBatchSummary"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowResult"
+        sheets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportSheetResult"
+      required:
+        [dryRun, layout, totalRows, okCount, warnCount, errorCount,
+         duplicateCount, invalidPhoneCount, heldCount, existingCount, committedCount,
+         resolvedExceptions, batches, rows, sheets]
+    PolicyImportInput:
+      type: object
+      description: >
+        Supply `sheets` (an uploaded workbook) or `csvText`. Only sheets in the
+        Policies layout are read; any other sheet of the workbook is ignored.
+      properties:
+        csvText: { type: string }
+        sheets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportSheet"
+        fileName:
+          type: string
+          description: The uploaded file's name, recorded in the audit trail.
+        dryRun: { type: boolean }
+        confirmUpdates:
+          type: boolean
+          description: >
+            Required (true) to commit a file in which some members already have
+            a policy, which the import would replace; otherwise the commit
+            answers 409 UPDATES_NOT_CONFIRMED. Ignored on a dry run.
+      required: [dryRun]
+    PolicyImportLayout:
+      type: object
+      properties:
+        label: { type: string }
+        columns:
+          type: array
+          items: { type: string }
+        description: { type: string }
+      required: [label, columns, description]
+    PolicyImportRow:
+      type: object
+      properties:
+        sheet: { type: string }
+        rowNumber: { type: number }
+        status:
+          type: string
+          enum: [OK, WARN, ERROR]
+          description: OK adds a policy, WARN replaces the member's policy, ERROR is skipped.
+        message: { type: string }
+        reasonCodes:
+          type: array
+          description: >
+            Why an ERROR row is skipped — e.g. MISSING_POLICY_FIELD, INVALID_DATE,
+            MEMBER_NOT_FOUND, AMBIGUOUS_MEMBER, COMPANY_INACTIVE, DUPLICATE_IN_FILE.
+          items: { type: string }
+        companyNumber: { type: ["string", "null"] }
+        memberIdNumber: { type: ["string", "null"] }
+        memberName: { type: ["string", "null"] }
+        policyNumber: { type: ["string", "null"] }
+        existingRecord:
+          type: boolean
+          description: The member already has a policy, which this row replaces.
+        changedFields:
+          type: array
+          description: For a member with a policy, the columns this row would change; empty when it matches.
+          items: { type: string }
+      required:
+        [sheet, rowNumber, status, message, reasonCodes, companyNumber, memberIdNumber,
+         memberName, policyNumber, existingRecord, changedFields]
+    PolicyImportCompany:
+      type: object
+      properties:
+        companyNumber: { type: string }
+        saved:
+          type: boolean
+          description: False when a write failed and nothing for this company was saved.
+        created: { type: number }
+        updated: { type: number }
+        message: { type: ["string", "null"] }
+      required: [companyNumber, saved, created, updated, message]
+    PolicyImportResult:
+      type: object
+      properties:
+        dryRun: { type: boolean }
+        totalRows: { type: number }
+        okCount:
+          type: number
+          description: Rows that add a policy.
+        warnCount:
+          type: number
+          description: Rows that replace a member's policy.
+        errorCount: { type: number }
+        existingCount:
+          type: number
+          description: Rows whose member already has a policy.
+        committedCount:
+          type: number
+          description: Policies added or replaced. 0 on a dry run.
+        companies:
+          type: array
+          description: One entry per company the commit touched. Empty on a dry run.
+          items:
+            $ref: "#/components/schemas/PolicyImportCompany"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicyImportRow"
+      required:
+        [dryRun, totalRows, okCount, warnCount, errorCount, existingCount,
+         committedCount, companies, rows]
+    ImportExceptionItem:
+      type: object
+      description: One held record on HR's fix list. The raw snapshot is never returned.
+      properties:
+        exceptionId: { type: number }
+        entityType: { type: ["string", "null"] }
+        personName: { type: ["string", "null"] }
+        memberIdentifier: { type: ["string", "null"] }
+        reasonCodes:
+          type: array
+          items: { type: string }
+        reason: { type: ["string", "null"] }
+        requiredAction: { type: ["string", "null"] }
+        source:
+          type: string
+          enum: [BULK_IMPORT, LEGACY_MIGRATION]
+        sourceFile: { type: ["string", "null"] }
+        originalFileName: { type: ["string", "null"] }
+        sheetName: { type: ["string", "null"] }
+        excelRow: { type: ["number", "null"] }
+        createdAt: { type: ["string", "null"] }
+        status:
+          type: string
+          enum: [OPEN, RESOLVED]
+        resolvedAt: { type: ["string", "null"] }
+        resolvedBy: { type: ["string", "null"] }
+        resolvedMemberId: { type: ["number", "null"] }
+        resolutionMethod:
+          description: IMPORT — a corrected row loaded; MANUAL — marked resolved by hand. Null while open.
+          oneOf:
+            - type: string
+              enum: [IMPORT, MANUAL]
+            - type: "null"
+        resolutionNote: { type: ["string", "null"] }
+      required:
+        [exceptionId, entityType, personName, memberIdentifier, reasonCodes,
+         reason, requiredAction, source, sourceFile, originalFileName, sheetName,
+         excelRow, createdAt, status, resolvedAt, resolvedBy, resolvedMemberId,
+         resolutionMethod, resolutionNote]
+    ResolveImportExceptionInput:
+      type: object
+      properties:
+        note:
+          type: string
+          minLength: 3
+          description: Why the record no longer needs an import (kept with the resolution)
+      required: [note]
+    ImportExceptionList:
+      type: object
+      properties:
+        companyNumber: { type: string }
+        openCount: { type: number }
+        resolvedCount: { type: number }
+        exceptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportExceptionItem"
+      required: [companyNumber, openCount, resolvedCount, exceptions]
+    ClassItem:
+      type: object
+      properties:
+        classCode: { type: string }
+        className: { type: string }
+        description: { type: ["string", "null"] }
+        active: { type: boolean }
+        sortOrder: { type: ["number", "null"] }
+        rateComplete:
+          type: boolean
+          description: Every tier has an active standard rate in force by the 1st of next month, the first month a member given the class now is billed. Only then can the class be given to a member.
+        memberCount:
+          type: number
+          description: Members carrying the class, across the caller's scope
+      required: [classCode, className, description, active, sortOrder, rateComplete, memberCount]
+    ClassList:
+      type: object
+      properties:
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassItem"
+      required: [classes]
+    CreateClassInput:
+      type: object
+      properties:
+        classCode:
+          type: string
+          description: One letter or digit (A–Z, 0–9); stored upper-case
+        className: { type: string, minLength: 1, maxLength: 50 }
+        description: { type: ["string", "null"], maxLength: 255 }
+        sortOrder: { type: ["number", "null"] }
+        reason: { type: string, minLength: 3 }
+      required: [classCode, className, reason]
+    UpdateClassInput:
+      type: object
+      properties:
+        className: { type: string, minLength: 1, maxLength: 50 }
+        description: { type: ["string", "null"], maxLength: 255 }
+        sortOrder: { type: ["number", "null"] }
+        active: { type: boolean }
+        reason: { type: string, minLength: 3 }
+      required: [reason]
+    PremiumRate:
+      type: object
+      properties:
+        premiumRateId: { type: number }
+        companyNumber: { type: ["string", "null"], description: "Null for the standard card" }
+        classCode: { type: string }
+        dependentBand: { type: number }
+        coverageBand: { type: string }
+        coverageLabel: { type: string }
+        totalPremium: { type: string }
+        companyPremium: { type: string }
+        employeePremium: { type: string }
+        effectiveDate: { type: string }
+        active: { type: boolean }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: ["string", "null"] }
+      required:
+        [premiumRateId, companyNumber, classCode, dependentBand, coverageBand,
+         coverageLabel, totalPremium, companyPremium, employeePremium,
+         effectiveDate, active, notes, createdAt]
+    PremiumRateList:
+      type: object
+      properties:
+        rates:
+          type: array
+          items:
+            $ref: "#/components/schemas/PremiumRate"
+      required: [rates]
+    RateTierInput:
+      type: object
+      properties:
+        dependentBand: { type: number, description: "0 Employee only, 1 +1, 2 +2, 3 more than two" }
+        totalPremium: { type: string }
+        companyPremium: { type: string }
+        employeePremium: { type: string }
+      required: [dependentBand, totalPremium, companyPremium, employeePremium]
+    CreateRateSetInput:
+      type: object
+      properties:
+        companyNumber: { type: ["string", "null"], description: "Null or absent for the standard card" }
+        classCode: { type: string }
+        effectiveDate: { type: string, description: "YYYY-MM-DD" }
+        tiers:
+          type: array
+          description: Exactly four, one per band
+          items:
+            $ref: "#/components/schemas/RateTierInput"
+        notes: { type: ["string", "null"] }
+        reason: { type: string, minLength: 3 }
+      required: [classCode, effectiveDate, tiers, reason]
+    UpdateRateInput:
+      type: object
+      properties:
+        active: { type: boolean }
+        notes: { type: ["string", "null"] }
+        reason: { type: string, minLength: 3 }
+      required: [reason]
+    ResolvedTier:
+      type: object
+      properties:
+        dependentBand: { type: number }
+        coverageBand: { type: string }
+        coverageLabel: { type: string }
+        source:
+          type: string
+          enum: [COMPANY, STANDARD, NONE]
+          description: NONE when neither a company nor a standard rate is in force
+        premiumRateId: { type: ["number", "null"] }
+        totalPremium: { type: ["string", "null"] }
+        companyPremium: { type: ["string", "null"] }
+        employeePremium: { type: ["string", "null"] }
+        effectiveDate: { type: ["string", "null"] }
+      required:
+        [dependentBand, coverageBand, coverageLabel, source, premiumRateId,
+         totalPremium, companyPremium, employeePremium, effectiveDate]
+    RateCardClass:
+      type: object
+      properties:
+        classCode: { type: string }
+        className: { type: string }
+        active: { type: boolean }
+        tiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResolvedTier"
+      required: [classCode, className, active, tiers]
+    RateCard:
+      type: object
+      properties:
+        companyNumber: { type: ["string", "null"] }
+        asOf: { type: string }
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/RateCardClass"
+      required: [companyNumber, asOf, classes]
+    BillingRule:
+      type: object
+      properties:
+        companyBillingRuleId: { type: number }
+        companyNumber: { type: string }
+        companySharePercent: { type: string }
+        employeeSharePercent: { type: string }
+        effectiveDate: { type: string }
+        active: { type: boolean }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: ["string", "null"] }
+      required:
+        [companyBillingRuleId, companyNumber, companySharePercent,
+         employeeSharePercent, effectiveDate, active, notes, createdAt]
+    BillingRuleList:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingRule"
+      required: [rules]
+    CreateBillingRuleInput:
+      type: object
+      properties:
+        companySharePercent: { type: string }
+        employeeSharePercent: { type: string }
+        effectiveDate: { type: string, description: "YYYY-MM-DD" }
+        active: { type: boolean }
+        notes: { type: ["string", "null"] }
+        reason: { type: string, minLength: 3 }
+      required: [companySharePercent, employeeSharePercent, effectiveDate, reason]
+    BillingTotals:
+      type: object
+      properties:
+        totalPremium: { type: string }
+        companyPremium: { type: string }
+        employeePremium: { type: string }
+      required: [totalPremium, companyPremium, employeePremium]
+    GenerateBillingInput:
+      type: object
+      properties:
+        month: { type: string, description: "YYYY-MM" }
+        companies:
+          description: '"ALL" for every active company, or a list of company numbers'
+          oneOf:
+            - type: string
+              enum: [ALL]
+            - type: array
+              items: { type: string }
+      required: [month, companies]
+    GenerateBillingItem:
+      type: object
+      properties:
+        companyNumber: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, ALREADY_FINAL, FAILED]
+        runId: { type: ["number", "null"] }
+        lines: { type: ["number", "null"] }
+        issues: { type: ["number", "null"] }
+        totals:
+          oneOf:
+            - $ref: "#/components/schemas/BillingTotals"
+            - type: "null"
+        supersededRunId: { type: ["number", "null"] }
+        message: { type: ["string", "null"] }
+      required: [companyNumber, status, runId, lines, issues, totals, supersededRunId, message]
+    GenerateBillingResult:
+      type: object
+      properties:
+        month: { type: string }
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenerateBillingItem"
+      required: [month, results]
+    BillingRunSummary:
+      type: object
+      properties:
+        billingRunId: { type: number }
+        companyNumber: { type: string }
+        companyName: { type: ["string", "null"] }
+        billingMonth: { type: string, description: "YYYY-MM" }
+        billingDate: { type: string }
+        generatedAt: { type: ["string", "null"] }
+        generatedBy: { type: ["string", "null"] }
+        status:
+          type: string
+          enum: [DRAFT, FINAL, SUPERSEDED]
+        lineCount: { type: number }
+        issueCount: { type: number }
+        totals:
+          $ref: "#/components/schemas/BillingTotals"
+      required:
+        [billingRunId, companyNumber, companyName, billingMonth, billingDate,
+         generatedAt, generatedBy, status, lineCount, issueCount, totals]
+    BillingRunList:
+      type: object
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingRunSummary"
+      required: [runs]
+    BillingLine:
+      type: object
+      properties:
+        billingLineId: { type: number }
+        memberId: { type: number }
+        idType: { type: string }
+        idNumber: { type: string }
+        memberName: { type: string }
+        classCode: { type: string }
+        activeDependentCount: { type: number }
+        coverageBand: { type: string }
+        coverageLabel: { type: string }
+        totalPremium: { type: string }
+        companyPremium: { type: string }
+        employeePremium: { type: string }
+        rateEffectiveDate: { type: string }
+        premiumRateId: { type: ["number", "null"] }
+        rateSource:
+          type: string
+          enum: [COMPANY, STANDARD]
+      required:
+        [billingLineId, memberId, idType, idNumber, memberName, classCode,
+         activeDependentCount, coverageBand, coverageLabel, totalPremium,
+         companyPremium, employeePremium, rateEffectiveDate, premiumRateId, rateSource]
+    BillingClassTierTotal:
+      type: object
+      description: Headcount × rate for one class and tier, as in the client's Access process
+      properties:
+        classCode: { type: string }
+        dependentBand: { type: number }
+        coverageBand: { type: string }
+        coverageLabel: { type: string }
+        headcount: { type: number }
+        totalPremium: { type: string }
+        companyPremium: { type: string }
+        employeePremium: { type: string }
+      required: [classCode, dependentBand, coverageBand, coverageLabel, headcount, totalPremium, companyPremium, employeePremium]
+    BillingIssue:
+      type: object
+      properties:
+        memberId: { type: number }
+        memberName: { type: ["string", "null"] }
+        idNumber: { type: ["string", "null"] }
+        classCode: { type: ["string", "null"] }
+        reason:
+          type: string
+          enum: [NO_RATE, CLASS_RETIRED_NO_RATE]
+      required: [memberId, memberName, idNumber, classCode, reason]
+    BillingRunDetail:
+      type: object
+      properties:
+        run:
+          $ref: "#/components/schemas/BillingRunSummary"
+        totalsByClassTier:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingClassTierTotal"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingLine"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingIssue"
+      required: [run, totalsByClassTier, lines, issues]
+    FinaliseBillingInput:
+      type: object
+      properties:
+        reason: { type: string, minLength: 3 }
+      required: [reason]
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: string }
+        actor: { type: string }
+        actorRole: { type: string }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["string", "null"] }
+        beforeValue: { type: ["string", "null"] }
+        afterValue: { type: ["string", "null"] }
+        reason: { type: ["string", "null"] }
+        sourceIp: { type: ["string", "null"] }
+        timestamp: { type: string }
+      required:
+        [id, actor, actorRole, action, entityType, entityId, beforeValue,
+         afterValue, reason, sourceIp, timestamp]
+    AuditPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntry"
+        page: { type: number }
+        pageSize: { type: number }
+        totalItems: { type: number }
+        totalPages: { type: number }
+      required: [items, page, pageSize, totalItems, totalPages]
+    VerificationEntry:
+      type: object
+      properties:
+        id: { type: string }
+        lookupChannel: { type: string }
+        maskedDestination: { type: string }
+        companyCode: { type: ["string", "null"] }
+        status: { type: string }
+        attempts: { type: number }
+        expiresAt: { type: string }
+        createdAt: { type: string }
+      required: [id, lookupChannel, maskedDestination, companyCode, status, attempts, expiresAt, createdAt]
+    VerificationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationEntry"
+        page: { type: number }
+        pageSize: { type: number }
+        totalItems: { type: number }
+        totalPages: { type: number }
+      required: [items, page, pageSize, totalItems, totalPages]
+    AdminUserSummary:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        displayName: { type: string }
+        role: { type: string }
+        roleLabel:
+          type: string
+          description: e.g. "Super admin" for ROLE_PLATFORM_ADMIN
+        companyScope:
+          type: ["string", "null"]
+          description: The one company of an HR administrator or client admin
+        active: { type: boolean }
+        createdAt: { type: string }
+      required: [id, email, displayName, role, roleLabel, companyScope, active, createdAt]
+    AdminUserCreate:
+      type: object
+      description: >
+        HR administrators and client admins need `companyScope`; every other
+        role has none. A client admin may create only ROLE_CLIENT_ADMIN or
+        ROLE_HR_ADMIN users, for its own company (spec FR-018).
+      properties:
+        email: { type: string, minLength: 3 }
+        displayName: { type: string, minLength: 2 }
+        role:
+          type: string
+          enum: [ROLE_PLATFORM_ADMIN, ROLE_CLIENT_ADMIN, ROLE_HR_ADMIN, ROLE_SUPPORT, ROLE_AUDITOR]
+        companyScope:
+          type: ["string", "null"]
+          description: Company number, for ROLE_HR_ADMIN and ROLE_CLIENT_ADMIN only
+      required: [email, displayName, role, companyScope]
+    AdminUserCreateResult:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/AdminUserSummary"
+        temporaryPassword:
+          type: string
+          description: Shown once; the invitee should change it after first sign-in
+      required: [user, temporaryPassword]
+    AdminUserUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 2 }
+        role:
+          type: string
+          enum: [ROLE_PLATFORM_ADMIN, ROLE_CLIENT_ADMIN, ROLE_HR_ADMIN, ROLE_SUPPORT, ROLE_AUDITOR]
+        companyScope:
+          type: ["string", "null"]
+          description: Company number, for ROLE_HR_ADMIN and ROLE_CLIENT_ADMIN only
+        active: { type: boolean }
+    AdminUserPasswordResult:
+      type: object
+      properties:
+        temporaryPassword:
+          type: string
+          description: Shown once; the user should change it after next sign-in
+      required: [temporaryPassword]
+    AdminPasswordChange:
+      type: object
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 8 }
+      required: [currentPassword, newPassword]
+    PermissionMatrixRow:
+      type: object
+      properties:
+        permission: { type: string }
+        description: { type: string }
+        grants:
+          type: object
+          description: Map of role name to grant label ("full", "scoped", "masked", "none")
+          additionalProperties: { type: string }
+      required: [permission, description, grants]
+    PermissionMatrix:
+      type: object
+      properties:
+        roles:
+          type: array
+          items: { type: string }
+        currentRole: { type: string }
+        currentPermissions:
+          type: array
+          items: { type: string }
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionMatrixRow"
+      required: [roles, currentRole, currentPermissions, rows]
+    LookupAlertMatch:
+      type: object
+      description: One member the contact matched.
+      properties:
+        companyNumber: { type: string }
+        companyName: { type: string }
+        memberId: { type: number }
+      required: [companyNumber, companyName, memberId]
+    LookupAlert:
+      type: object
+      properties:
+        id: { type: string }
+        lookupChannel:
+          type: string
+          enum: [EMAIL, PHONE]
+        maskedContact: { type: string }
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/LookupAlertMatch"
+        status:
+          type: string
+          enum: [OPEN, RESOLVED]
+        resolvedBy: { type: ["string", "null"] }
+        resolutionNote: { type: ["string", "null"] }
+        resolvedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+      required:
+        [id, lookupChannel, maskedContact, matches, status, resolvedBy,
+         resolutionNote, resolvedAt, createdAt]
+    CompanyProfileFields:
+      type: object
+      description: The BHI Company fields, with the Access file's sizes.
+      properties:
+        companyName: { type: string, minLength: 1, maxLength: 120 }
+        address1: { type: ["string", "null"], maxLength: 120 }
+        address2: { type: ["string", "null"], maxLength: 120 }
+        city: { type: ["string", "null"], maxLength: 80 }
+        contactName: { type: ["string", "null"], maxLength: 100 }
+        contactPhone: { type: ["string", "null"], maxLength: 50 }
+        contactEmail: { type: ["string", "null"], maxLength: 100 }
+        notes: { type: ["string", "null"] }
+    CompanyOnboard:
+      allOf:
+        - $ref: "#/components/schemas/CompanyProfileFields"
+        - type: object
+          properties:
+            companyNumber: { type: string, minLength: 1, maxLength: 20 }
+            clientAdmin:
+              type: object
+              properties:
+                email: { type: string, minLength: 3 }
+                displayName: { type: string, minLength: 2 }
+              required: [email, displayName]
+            reason:
+              type: string
+              minLength: 3
+          required: [companyNumber, companyName, clientAdmin, reason]
+    CompanyOnboardResult:
+      type: object
+      properties:
+        company:
+          $ref: "#/components/schemas/Company"
+        clientAdmin:
+          $ref: "#/components/schemas/AdminUserSummary"
+        temporaryPassword:
+          type: string
+          description: Shown once; the client admin must change it at first sign-in
+      required: [company, clientAdmin, temporaryPassword]
+    CompanyUpdate:
+      allOf:
+        - $ref: "#/components/schemas/CompanyProfileFields"
+        - type: object
+          properties:
+            reason:
+              type: string
+              minLength: 3
+          required: [reason]

@@ -1,0 +1,4 @@
+- [OpenAPI codegen quirks](openapi-codegen-quirks.md) — avoid `format: email` in openapi.yaml (orval emits zod v4 `zod.email()`); keep password min length ≤ 9 for demo seeds.
+- [Stale project-reference declarations](ts-project-refs-stale-dts.md) — false "no exported member" from @workspace libs means rebuild lib dts with `tsc -b`.
+- [OTP decoy sessions & test flows](otp-decoy-testing.md) — ineligible members get unverifiable decoy OTP sessions; validation suites depend on dev-mode code echo.
+- [OTP delivery design](otp-delivery.md) — OTP delivery uses SMTP/SMS-webhook via otpDelivery.ts; failed sends expire the session and surface 503, never a silent "code sent".

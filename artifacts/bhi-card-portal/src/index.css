@@ -1,0 +1,976 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:ital,wght@0,300..900;1,400&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+
+  /* Status tones — always paired with a word, never colour alone. */
+  --color-success: var(--status-success);
+  --color-success-soft: var(--status-success-bg);
+  --color-warning: var(--status-warning);
+  --color-warning-soft: var(--status-warning-bg);
+  --color-warning-text: var(--status-warning-text);
+  --color-info: var(--status-info);
+  --color-info-soft: var(--status-info-bg);
+  --color-error: var(--status-error);
+  --color-error-soft: var(--status-error-bg);
+
+  /* Design-system ink and surfaces as utilities (text-fg-3, bg-surface-2 …). */
+  --color-fg-1: var(--fg-1);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-4: var(--fg-4);
+  --color-brand-50: var(--brand-50);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-hairline: var(--surface-hairline);
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary-border: var(--sidebar-primary-border);
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent-border: var(--sidebar-accent-border);
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  /* 12px base: buttons/inputs/menus 12, cards 16. */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: 20px;
+}
+
+/* ---------------------------------------------------------------------------
+   Design tokens — one navy accent, cool-grey ink, flat surfaces with a
+   hairline + soft shadow. Components read var(--…) so dark mode follows.
+   The shadcn HSL triples below are derived from these tokens.
+   ------------------------------------------------------------------------ */
+:root {
+  /* Ink */
+  --fg-1: #1d2935;
+  --fg-2: #293745;
+  --fg-3: #4d5d6d;
+  --fg-4: #667585;
+  --fg-on-accent: #ffffff;
+
+  /* Brand — navy is the only accent */
+  --brand-50: #e8eef4;
+  --brand-100: #d0dce8;
+  --brand-200: #a3b8cf;
+  --brand-300: #7694b5;
+  --brand-400: #4a6f9a;
+  --brand-500: #213b55;
+  --brand-600: #142b44;
+  --brand-700: #0e2237;
+  --brand-800: #091a2b;
+  --brand-900: #061320;
+  --brand-950: #030b15;
+  --accent-soft: rgba(20, 43, 68, 0.1);
+  --accent-ring: rgba(20, 43, 68, 0.45);
+  --hero-navy-gradient: linear-gradient(180deg, #0a1424 0%, #14263e 35%, #0c192c 70%, #0a1424 100%);
+  /* The hero is dark in both themes, so its light CTA keeps navy ink in both. */
+  --hero-fg: #ffffff;
+  --hero-fg-muted: rgba(255, 255, 255, 0.72);
+  --hero-cta-bg: #ffffff;
+  --hero-cta-fg: #0e2237;
+
+  /* Surfaces */
+  --bg-page: #f5f7f9;
+  --surface-1: rgba(255, 255, 255, 0.78);
+  --surface-2: rgba(248, 250, 252, 0.7);
+  --surface-3: rgba(255, 255, 255, 0.84);
+  --surface-4: rgba(226, 232, 240, 0.68);
+  --surface-border: rgba(29, 41, 53, 0.12);
+  --surface-border-soft: rgba(29, 41, 53, 0.08);
+  --surface-hairline: rgba(29, 41, 53, 0.09);
+  --glass-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+
+  /* Status */
+  --status-success: #1f8a5b;
+  --status-success-bg: rgba(31, 138, 91, 0.1);
+  --status-warning: #c47d12;
+  --status-warning-bg: rgba(196, 125, 18, 0.12);
+  --status-warning-text: #8a5a0d;
+  --status-error: #c43d3d;
+  --status-error-bg: rgba(196, 61, 61, 0.1);
+  --status-info: #2a6fdb;
+  --status-info-bg: rgba(42, 111, 219, 0.1);
+
+  /* Motion */
+  --dur-snap: 120ms;
+  --dur-fast: 180ms;
+  --dur-base: 260ms;
+  --dur-slow: 420ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-emphasis: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  --tr-control: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-spring);
+  --tr-surface: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease-out);
+
+  /* shadcn bridge (HSL triples) */
+  --button-outline: var(--surface-border);
+  --badge-outline: var(--surface-border);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(20, 43, 68, 0.04);
+  --elevate-2: rgba(20, 43, 68, 0.08);
+
+  --background: 210 20% 97%;        /* --bg-page */
+  --foreground: 210 29% 16%;        /* --fg-1 */
+  --border: 210 14% 88%;            /* --surface-border on white */
+  --card: 0 0% 100%;
+  --card-foreground: 210 29% 16%;
+  --card-border: 210 14% 88%;
+
+  /* Admin rail: deep navy spine (brand-800). */
+  --sidebar: 210 65% 10%;
+  --sidebar-foreground: 210 30% 92%;
+  --sidebar-border: 210 40% 18%;
+  --sidebar-primary: 211 54% 17%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 211 32% 72%;    /* brand-200 — light navy, not a second hue */
+  --sidebar-accent-foreground: 210 65% 10%;
+  --sidebar-ring: 211 32% 72%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 29% 16%;
+  --popover-border: 210 14% 88%;
+
+  --primary: 211 54% 17%;           /* --brand-600 */
+  --primary-foreground: 0 0% 100%;  /* --fg-on-accent */
+  --secondary: 213 30% 93%;         /* --brand-50-ish chip */
+  --secondary-foreground: 211 60% 14%;
+  --muted: 214 32% 93%;             /* --surface-4 */
+  --muted-foreground: 210 17% 36%;  /* --fg-3 */
+  --accent: 210 33% 93%;            /* --brand-50: hover/selected fill */
+  --accent-foreground: 211 60% 14%; /* --brand-700 */
+  --destructive: 0 53% 50%;         /* --status-error */
+  --destructive-foreground: 0 0% 100%;
+
+  --input: 210 14% 82%;
+  --ring: 211 54% 17%;
+  --chart-1: 211 54% 17%;
+  --chart-2: 211 35% 45%;
+  --chart-3: 211 32% 72%;
+  --chart-4: 153 63% 33%;
+  --chart-5: 36 83% 42%;
+
+  --app-font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: 'IBM Plex Mono', ui-monospace, 'Courier New', monospace;
+  --font-display: var(--app-font-sans);
+
+  --radius: 12px;
+  --shadow-2xs: 0 1px 2px rgba(16, 34, 66, 0.04);
+  --shadow-xs: 0 1px 2px rgba(16, 34, 66, 0.06);
+  --shadow-sm: 0 1px 2px rgba(16, 34, 66, 0.05), 0 2px 8px -2px rgba(16, 34, 66, 0.07);
+  --shadow: 0 2px 4px -1px rgba(16, 34, 66, 0.06), 0 6px 16px -6px rgba(16, 34, 66, 0.1);
+  --shadow-md: 0 2px 6px -1px rgba(16, 34, 66, 0.06), 0 10px 24px -10px rgba(16, 34, 66, 0.14);
+  --shadow-lg: 0 4px 10px -2px rgba(16, 34, 66, 0.08), 0 18px 36px -14px rgba(16, 34, 66, 0.2);
+  --shadow-xl: 0 8px 18px -6px rgba(16, 34, 66, 0.12), 0 28px 56px -20px rgba(16, 34, 66, 0.26);
+  --shadow-2xl: 0 32px 64px -20px rgba(16, 34, 66, 0.3);
+  --shadow-accent: 0 8px 22px var(--accent-ring);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(
+    from hsl(var(--sidebar-primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(
+    from hsl(var(--sidebar-accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(
+    from hsl(var(--primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(
+    from hsl(var(--secondary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(
+    from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) /
+      alpha
+  );
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(
+    from hsl(var(--accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(
+    from hsl(var(--destructive)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+}
+
+/* Dark: the accent lifts to a light navy, so text on it flips to dark ink. */
+.dark {
+  --fg-1: #eef2f6;
+  --fg-2: #cfd8e1;
+  --fg-3: #9aa8b6;
+  --fg-4: #7d8b99;
+  --fg-on-accent: #08111a;
+
+  --brand-50: rgba(111, 168, 220, 0.14);
+  --brand-600: #6fa8dc;
+  --brand-700: #8bbbe6;
+  --accent-soft: rgba(111, 168, 220, 0.14);
+  --accent-ring: rgba(111, 168, 220, 0.5);
+
+  --bg-page: #0b131c;
+  --surface-1: rgba(20, 31, 44, 0.82);
+  --surface-2: rgba(16, 25, 36, 0.78);
+  --surface-3: rgba(24, 36, 50, 0.94);
+  --surface-4: rgba(58, 74, 92, 0.42);
+  --surface-border: rgba(238, 242, 246, 0.1);
+  --surface-border-soft: rgba(238, 242, 246, 0.07);
+  --surface-hairline: rgba(238, 242, 246, 0.08);
+  --glass-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  --status-success: #4cc38a;
+  --status-success-bg: rgba(76, 195, 138, 0.14);
+  --status-warning: #e3a33b;
+  --status-warning-bg: rgba(227, 163, 59, 0.14);
+  --status-warning-text: #f0bd66;
+  --status-error: #ef7272;
+  --status-error-bg: rgba(239, 114, 114, 0.14);
+  --status-info: #7aa9f0;
+  --status-info-bg: rgba(122, 169, 240, 0.14);
+
+  --button-outline: var(--surface-border);
+  --badge-outline: var(--surface-border);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255, 255, 255, 0.04);
+  --elevate-2: rgba(255, 255, 255, 0.08);
+
+  --background: 213 44% 8%;
+  --foreground: 210 29% 95%;
+  --border: 211 22% 20%;
+  --card: 211 38% 12%;
+  --card-foreground: 210 29% 95%;
+  --card-border: 211 22% 20%;
+
+  --sidebar: 213 50% 6%;
+  --sidebar-foreground: 210 29% 92%;
+  --sidebar-border: 211 26% 15%;
+  --sidebar-primary: 209 61% 65%;
+  --sidebar-primary-foreground: 210 53% 7%;
+  --sidebar-accent: 209 61% 65%;
+  --sidebar-accent-foreground: 210 53% 7%;
+  --sidebar-ring: 209 61% 65%;
+
+  --popover: 211 34% 14%;
+  --popover-foreground: 210 29% 95%;
+  --popover-border: 211 22% 22%;
+
+  --primary: 209 61% 65%;
+  --primary-foreground: 210 53% 7%;
+  --secondary: 211 24% 20%;
+  --secondary-foreground: 210 29% 92%;
+  --muted: 211 24% 17%;
+  --muted-foreground: 211 15% 66%;
+  --accent: 209 40% 20%;
+  --accent-foreground: 209 70% 80%;
+  --destructive: 0 80% 69%;
+  --destructive-foreground: 210 53% 7%;
+
+  --input: 211 22% 24%;
+  --ring: 209 61% 65%;
+  --chart-1: 209 61% 65%;
+  --chart-2: 209 45% 48%;
+  --chart-3: 211 32% 72%;
+  --chart-4: 151 50% 53%;
+  --chart-5: 37 75% 56%;
+
+  --shadow-2xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px -2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 2px 6px -1px rgba(0, 0, 0, 0.35), 0 10px 24px -10px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 10px -2px rgba(0, 0, 0, 0.4), 0 18px 36px -14px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 8px 18px -6px rgba(0, 0, 0, 0.45), 0 28px 56px -20px rgba(0, 0, 0, 0.6);
+  --shadow-2xl: 0 32px 64px -20px rgba(0, 0, 0, 0.65);
+}
+
+/* ---------------------------------------------------------------------------
+   Admin theme. AdminLayout (and the admin sign-in page) put `admin-ui` on
+   <html>, so the portal gets its own look while the member-facing pages and
+   the health card keep the NALICO navy. Set on <html> rather than a wrapper
+   div so dialogs, sheets and menus — which portal to <body> — follow it.
+
+   Royal-blue accent, cool slate ink, white cards on a soft blue-grey wash,
+   Source Sans 3 at a 17px base so every rem-sized label reads larger.
+   ------------------------------------------------------------------------ */
+:is(html.admin-ui, html.member-ui) {
+  font-size: 17px;
+  --app-font-sans: 'Source Sans 3', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: var(--app-font-sans);
+
+  /* Ink */
+  --fg-1: #1a2530;
+  --fg-2: #2b3a48;
+  --fg-3: #4a5d6e;
+  --fg-4: #66788a;
+
+  /* Brand — royal blue, with gold as the one warm highlight */
+  --brand-50: #eef1fe;
+  --brand-100: #dde4fd;
+  --brand-200: #bac8fb;
+  --brand-300: #8ea2f6;
+  --brand-400: #4f6ef2;
+  --brand-500: #2547f4;
+  --brand-600: #0123d4;
+  --brand-700: #011aa6;
+  --brand-800: #02137a;
+  --brand-900: #020d52;
+  --brand-950: #01082f;
+  --gold-500: #c9a227;
+  --accent-soft: rgba(1, 35, 212, 0.08);
+  --accent-ring: rgba(1, 35, 212, 0.32);
+  --hero-gradient: linear-gradient(135deg, #0123d4 0%, #0e3ce0 50%, #2547f4 100%);
+  --btn-brand-gradient: linear-gradient(135deg, #4f7bff 0%, #2547f0 38%, #0b23c9 72%, #07158f 100%);
+  --btn-brand-gradient-hover: linear-gradient(135deg, #6088ff 0%, #2f55ff 38%, #1430df 72%, #0c1ca8 100%);
+  --btn-brand-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 2px rgba(2, 21, 148, 0.5),
+    0 2px 6px rgba(1, 35, 212, 0.28), 0 12px 26px -12px rgba(1, 35, 212, 0.5);
+  --btn-brand-shadow-hover: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 2px rgba(2, 21, 148, 0.5),
+    0 4px 10px rgba(1, 35, 212, 0.34), 0 18px 34px -12px rgba(1, 35, 212, 0.6);
+
+  /* Surfaces — solid white cards, no glass */
+  --bg-page: #eef1f6;
+  --surface-1: #ffffff;
+  --surface-2: #f7f9fc;
+  --surface-3: #ffffff;
+  --surface-4: #eef1f5;
+  --surface-border: #dce3ec;
+  --surface-border-soft: #e6ebf2;
+  --surface-hairline: #eef1f5;
+  --glass-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  /* Status */
+  --status-success: #1a7a4a;
+  --status-success-bg: #e8f5ec;
+  --status-warning: #b45309;
+  --status-warning-bg: #fef3c7;
+  --status-warning-text: #92400e;
+  --status-error: #b91c1c;
+  --status-error-bg: #fee2e2;
+  --status-info: #005b99;
+  --status-info-bg: #e8f0f9;
+
+  --button-outline: var(--surface-border);
+  --badge-outline: var(--surface-border);
+  --elevate-1: rgba(1, 35, 212, 0.04);
+  --elevate-2: rgba(1, 35, 212, 0.08);
+
+  /* shadcn bridge (HSL triples) */
+  --background: 218 30% 95%;
+  --foreground: 210 30% 15%;
+  --border: 213 30% 89%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 30% 15%;
+  --card-border: 213 30% 89%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 30% 15%;
+  --popover-border: 213 30% 89%;
+  --primary: 230 99% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 218 38% 96%;
+  --secondary-foreground: 210 30% 15%;
+  --muted: 216 29% 95%;
+  --muted-foreground: 209 15% 41%;
+  --accent: 229 89% 96%;
+  --accent-foreground: 230 99% 33%;
+  --destructive: 0 73% 42%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 213 22% 82%;
+  --ring: 230 99% 42%;
+  --chart-1: 230 99% 42%;
+  --chart-2: 229 90% 55%;
+  --chart-3: 229 89% 85%;
+  --chart-4: 150 65% 29%;
+  --chart-5: 46 68% 47%;
+
+  --radius: 10px;
+  --shadow-2xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px -6px rgba(15, 23, 42, 0.08);
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 8px 20px -10px rgba(15, 23, 42, 0.12);
+  --shadow-md: 0 2px 6px -1px rgba(15, 23, 42, 0.06), 0 12px 28px -12px rgba(15, 23, 42, 0.14);
+  --shadow-lg: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 20px 40px -16px rgba(15, 23, 42, 0.2);
+  --shadow-xl: 0 8px 18px -6px rgba(15, 23, 42, 0.12), 0 28px 56px -20px rgba(15, 23, 42, 0.26);
+  --shadow-accent: 0 10px 24px -10px rgba(1, 35, 212, 0.55);
+}
+
+:is(html.admin-ui, html.member-ui) body {
+  background-color: var(--bg-page);
+  background-image:
+    radial-gradient(60% 50% at 8% -6%, rgba(1, 35, 212, 0.08), transparent 60%),
+    radial-gradient(48% 44% at 100% 10%, rgba(123, 47, 190, 0.05), transparent 55%),
+    radial-gradient(64% 58% at 86% 106%, rgba(1, 35, 212, 0.06), transparent 60%);
+  /* Inter's stylistic sets mean nothing to Source Sans. */
+  font-feature-settings: normal;
+}
+
+:is(html.admin-ui, html.member-ui) .mono-id {
+  font-feature-settings: 'tnum';
+  letter-spacing: 0;
+}
+
+:is(html.admin-ui, html.member-ui) .ds-page-title {
+  font-size: clamp(26px, 2.6vw, 32px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+:is(html.admin-ui, html.member-ui) .ds-h2 {
+  font-size: 22px;
+  font-weight: 700;
+}
+:is(html.admin-ui, html.member-ui) .ds-panel-title,
+:is(html.admin-ui, html.member-ui) .ds-card-title {
+  font-weight: 700;
+}
+:is(html.admin-ui, html.member-ui) .ds-meta {
+  font-size: 15px;
+}
+:is(html.admin-ui, html.member-ui) .ds-eyebrow {
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+}
+
+/* Primary buttons carry the reference's lit gradient instead of a flat fill. */
+:is(html.admin-ui, html.member-ui) .btn-brand {
+  background-color: var(--brand-600);
+  background-image: var(--btn-brand-gradient);
+  border-color: transparent;
+  box-shadow: var(--btn-brand-shadow);
+}
+:is(html.admin-ui, html.member-ui) .btn-brand:hover:not(:disabled) {
+  background-image: var(--btn-brand-gradient-hover);
+  box-shadow: var(--btn-brand-shadow-hover);
+}
+
+/* Thin, quiet scrollbars inside panels and the content well. */
+:is(html.admin-ui, html.member-ui) ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+:is(html.admin-ui, html.member-ui) ::-webkit-scrollbar-thumb {
+  background: #cbd3dd;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+:is(html.admin-ui, html.member-ui) ::-webkit-scrollbar-thumb:hover {
+  background-color: #9aa5b5;
+}
+:is(html.admin-ui, html.member-ui) ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Hero banner: the reference's blue sweep with a gold glow and a faint grid.
+   In the components layer so utilities (rounded-none, shadow-none) can trim it. */
+@layer components {
+.admin-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  color: #ffffff;
+  background: var(--hero-gradient);
+  box-shadow: 0 10px 30px -12px rgba(1, 35, 212, 0.55);
+}
+.admin-hero::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -40px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 162, 39, 0.35) 0%, transparent 65%);
+  pointer-events: none;
+}
+.admin-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(80% 90% at 85% 0%, #000 0%, transparent 75%);
+  mask-image: radial-gradient(80% 90% at 85% 0%, #000 0%, transparent 75%);
+  pointer-events: none;
+}
+}
+
+/* Dashboard in NALICO's own colours — the logo's wordmark purple and roof red
+   (lib/card-design/src/logo.ts). Scoped to the dashboard wrapper: the brand
+   ramp is redefined for its descendants only, so the rail, top bar and every
+   other admin page keep the royal-blue theme. */
+.nalico-dash {
+  --nalico-purple: #5b25cf;
+  --nalico-red: #e3151f;
+  --brand-50: #f3eefd;
+  --brand-100: #e6dcfb;
+  --brand-200: #cdb9f6;
+  --brand-300: #a98aee;
+  --brand-400: #8458e2;
+  --brand-500: #6b35d8;
+  --brand-600: #5b25cf;
+  --brand-700: #4a1bad;
+  --brand-800: #3a1489;
+  --brand-900: #2a0e63;
+  --accent-soft: rgba(91, 37, 207, 0.08);
+  --accent-ring: rgba(91, 37, 207, 0.32);
+  --hero-gradient: linear-gradient(135deg, #2f0f73 0%, #4a1bad 38%, #5b25cf 70%, #7440e6 100%);
+}
+.nalico-dash .admin-hero {
+  box-shadow: 0 12px 32px -14px rgba(91, 37, 207, 0.6);
+}
+/* The warm glow becomes the roof's red. */
+.nalico-dash .admin-hero::before {
+  top: -90px;
+  right: 18%;
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle, rgba(227, 21, 31, 0.32) 0%, transparent 65%);
+}
+/* A red roof line along the banner's top edge, as on the logo. */
+.nalico-roof-edge {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--nalico-red, #e3151f), #ff4d55 50%, var(--nalico-red, #e3151f));
+}
+
+/* Member portal in NALICO's colours: the same wordmark purple and roof red
+   as the admin dashboard. MemberShell puts `member-ui` on <html>; listed
+   after the shared base so its brand ramp wins. The health card artwork is
+   drawn from lib/card-design and never reads these tokens. */
+html.member-ui {
+  --nalico-purple: #5b25cf;
+  --nalico-red: #e3151f;
+  --brand-50: #f3eefd;
+  --brand-100: #e6dcfb;
+  --brand-200: #cdb9f6;
+  --brand-300: #a98aee;
+  --brand-400: #8458e2;
+  --brand-500: #6b35d8;
+  --brand-600: #5b25cf;
+  --brand-700: #4a1bad;
+  --brand-800: #3a1489;
+  --brand-900: #2a0e63;
+  --brand-950: #1a0840;
+  --accent-soft: rgba(91, 37, 207, 0.08);
+  --accent-ring: rgba(91, 37, 207, 0.32);
+  --hero-gradient: linear-gradient(135deg, #2f0f73 0%, #4a1bad 38%, #5b25cf 70%, #7440e6 100%);
+  --hero-navy-gradient: var(--hero-gradient);
+  --hero-fg: #ffffff;
+  --hero-fg-muted: #e6dcfb;
+  --hero-cta-bg: #ffffff;
+  --hero-cta-fg: #5b25cf;
+  --btn-brand-gradient: linear-gradient(135deg, #8a5cf0 0%, #6b35d8 40%, #5b25cf 70%, #3a1489 100%);
+  --btn-brand-gradient-hover: linear-gradient(135deg, #9a70f5 0%, #7a45e8 40%, #6630dc 70%, #45189f 100%);
+  --btn-brand-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 2px rgba(42, 14, 99, 0.5),
+    0 2px 6px rgba(91, 37, 207, 0.28), 0 12px 26px -12px rgba(91, 37, 207, 0.5);
+  --btn-brand-shadow-hover: inset 0 1px 0 rgba(255, 255, 255, 0.65), inset 0 -1px 2px rgba(42, 14, 99, 0.5),
+    0 4px 10px rgba(91, 37, 207, 0.34), 0 18px 34px -12px rgba(91, 37, 207, 0.6);
+  --shadow-accent: 0 10px 24px -10px rgba(91, 37, 207, 0.55);
+  --elevate-1: rgba(91, 37, 207, 0.04);
+  --elevate-2: rgba(91, 37, 207, 0.08);
+
+  /* shadcn bridge: primary, ring and accent follow the purple */
+  --primary: 259 69% 48%;
+  --ring: 259 69% 48%;
+  --accent: 262 79% 96%;
+  --accent-foreground: 260 73% 39%;
+  --chart-1: 259 69% 48%;
+}
+html.member-ui body {
+  background-image:
+    radial-gradient(60% 50% at 8% -6%, rgba(91, 37, 207, 0.09), transparent 60%),
+    radial-gradient(48% 44% at 100% 8%, rgba(227, 21, 31, 0.05), transparent 55%),
+    radial-gradient(64% 58% at 86% 106%, rgba(91, 37, 207, 0.06), transparent 60%);
+}
+
+/* Staggered entrance for KPI rows and panel grids. */
+.ds-stagger > * {
+  animation: ds-rise var(--dur-slow) var(--ease-out) both;
+}
+.ds-stagger > :nth-child(2) { animation-delay: 50ms; }
+.ds-stagger > :nth-child(3) { animation-delay: 100ms; }
+.ds-stagger > :nth-child(4) { animation-delay: 150ms; }
+.ds-stagger > :nth-child(5) { animation-delay: 200ms; }
+.ds-stagger > :nth-child(n + 6) { animation-delay: 250ms; }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply font-sans antialiased text-foreground;
+    background-color: var(--bg-page);
+    /* A faint ambient wash so flat cards have something to sit on. */
+    background-image:
+      radial-gradient(1200px 600px at 100% -10%, var(--accent-soft), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, var(--accent-soft), transparent 55%);
+    background-attachment: fixed;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  h1, h2, h3, h4 {
+    color: var(--fg-1);
+  }
+
+  /* Global 2px focus ring in the accent; no ring for mouse clicks. */
+  :focus-visible {
+    outline: 2px solid var(--brand-600);
+    outline-offset: 2px;
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Type recipes
+   ------------------------------------------------------------------------ */
+@layer components {
+  .ds-page-title {
+    font-size: clamp(25px, 4.2vw, 32px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+    color: var(--fg-1);
+  }
+  .ds-h2 {
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    color: var(--fg-1);
+  }
+  .ds-panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--fg-1);
+  }
+  .ds-card-title {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--fg-1);
+  }
+  .ds-meta {
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--fg-3);
+  }
+  .ds-eyebrow {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brand-600);
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Card = surface-1 + hairline + radius 16 + soft shadow + sheen. */
+  .ds-card {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm), var(--glass-sheen);
+  }
+  /* Inset panel = surface-2, radius 18, soft border. */
+  .ds-panel {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border-soft);
+    border-radius: 18px;
+  }
+
+  .ds-skeleton {
+    background: linear-gradient(90deg, var(--surface-4) 0%, var(--surface-2) 50%, var(--surface-4) 100%);
+    background-size: 200% 100%;
+    animation: ds-shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes ds-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ---------------------------------------------------------------------------
+   Behaviour
+   ------------------------------------------------------------------------ */
+[data-elevate] {
+  transition: var(--tr-surface);
+}
+[data-elevate]:not([data-elevate='row']):hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), var(--glass-sheen);
+  border-color: var(--brand-200);
+}
+[data-elevate='row']:hover {
+  background-color: var(--brand-50);
+}
+.interactive {
+  transition: var(--tr-surface);
+}
+.interactive:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg), var(--glass-sheen);
+}
+.press {
+  transition: var(--tr-control);
+}
+.press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--brand-600);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+@keyframes ds-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.ds-rise {
+  animation: ds-rise var(--dur-slow) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  [data-elevate]:hover,
+  .interactive:hover {
+    transform: none !important;
+  }
+}
+
+@layer utilities {
+  input[type='search']::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  .no-default-hover-elevate {
+  }
+
+  .no-default-active-elevate {
+  }
+
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: -1;
+  }
+
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: 999;
+  }
+
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
+
+  /* Card baseline grid — visible ruled lines echoing physical insurance cards */
+  .card-grid {
+    background-image: 
+      repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent 23px,
+        var(--surface-hairline) 23px,
+        var(--surface-hairline) 24px
+      );
+  }
+
+  /* Mono identifiers on baseline */
+  /* Identifiers, emails, phone numbers and dates in tables and detail views.
+     Inter with tabular figures — digits line up column to column without the
+     typewriter look of a monospace face. Keep font-mono only for text that is
+     read character by character (raw CSV, a temporary password). */
+  .mono-id {
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum', 'cv11', 'ss01';
+    letter-spacing: -0.005em;
+  }
+}
+
+
+/* Print: only the health card.
+   The card is one SVG inside [data-testid='health-card'] (components/health-card.tsx).
+   Everything else is hidden with visibility, which keeps the layout, so the card
+   is also lifted to the top-left of the page — otherwise the invisible header and
+   toolbar above it push it down or onto a second, blank-looking page. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  [data-testid='health-card'],
+  [data-testid='health-card'] * {
+    visibility: visible;
+  }
+  [data-testid='health-card'] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100mm;
+    max-width: 100%;
+    margin: 0 auto;
+    filter: none !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* The entrance animation starts at opacity 0; never print mid-fade. */
+  .ds-rise {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

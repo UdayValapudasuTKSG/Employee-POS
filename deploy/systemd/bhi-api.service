@@ -1,0 +1,28 @@
+# systemd unit for the BHI/NALICO API server
+# Place at /etc/systemd/system/bhi-api.service then:
+#   systemctl daemon-reload && systemctl enable --now bhi-api
+
+[Unit]
+Description=BHI Health Card Portal API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/bhi-api
+EnvironmentFile=/opt/bhi-api/.env
+# /usr/bin/env finds node wherever it is installed (run `which node` to check).
+# If node was installed with nvm, replace with the full path from `which node`,
+# e.g. ExecStart=/home/youruser/.nvm/versions/node/v20.11.0/bin/node --enable-source-maps /opt/bhi-api/index.mjs
+ExecStart=/usr/bin/env node --enable-source-maps /opt/bhi-api/index.mjs
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+# Local-only override, loaded automatically by `docker compose`.
+# VS Code's extension host holds 127.0.0.1:3001 on this machine, so the API's
+# direct-client port moves to 3002. Inside the stack nginx still reaches it at
+# api:3001, so the portal on WEB_PORT is unaffected.
+services:
+  api:
+    ports: !override
+      - "127.0.0.1:3002:3001"

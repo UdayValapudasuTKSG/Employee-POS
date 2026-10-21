@@ -1,0 +1,38 @@
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "local": "node deploy/start-local.mjs",
+    "local:watch": "node deploy/start-local.mjs --watch",
+    "local:devcode": "node deploy/start-local.mjs --devcode",
+    "local:stop": "node deploy/stop-local.mjs",
+    "stack:up": "docker compose --env-file artifacts/bhi-card-portal/.env up -d --build",
+    "stack:down": "docker compose --env-file artifacts/bhi-card-portal/.env down",
+    "local:api": "node deploy/with-env.mjs deploy/api/index.mjs",
+    "local:web": "node deploy/serve-local.mjs",
+    "local:mail": "node deploy/with-env.mjs deploy/local-delivery.mjs",
+    "local:sms": "node deploy/with-env.mjs deploy/sms-gateway.mjs",
+    "test:sms": "node --test deploy/sms-gateway.test.mjs",
+    "local:db": "powershell -ExecutionPolicy Bypass -File deploy/db/setup-local.ps1",
+    "release": "node deploy/make-release.mjs",
+    "local:test": "node artifacts/api-server/scripts/rbac-test.mjs",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+  },
+  "private": true,
+  "dependencies": {
+    "@replit/connectors-sdk": "^0.4.1"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "typescript": "~5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+# TEST VALUES - replace with the client's rate card before go-live (plan.md, client dependency 1). load-standard-rates refuses this file in production while this line is present.
+class_code,dependent_band,total_premium,company_premium,employee_premium,effective_date
+A,0,5000.00,4000.00,1000.00,2026-10-01
+A,1,9000.00,7200.00,1800.00,2026-10-01
+A,2,12000.00,9600.00,2400.00,2026-10-01
+A,3,14000.00,11200.00,2800.00,2026-10-01
+B,0,4000.00,3200.00,800.00,2026-10-01
+B,1,7000.00,5600.00,1400.00,2026-10-01
+B,2,9500.00,7600.00,1900.00,2026-10-01
+B,3,11000.00,8800.00,2200.00,2026-10-01
+C,0,3000.00,2400.00,600.00,2026-10-01
+C,1,5500.00,4400.00,1100.00,2026-10-01
+C,2,7500.00,6000.00,1500.00,2026-10-01
+C,3,9000.00,7200.00,1800.00,2026-10-01

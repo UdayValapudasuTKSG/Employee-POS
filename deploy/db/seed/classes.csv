@@ -1,0 +1,5 @@
+# Class names are placeholders until the client confirms them (plan.md, client dependency 2).
+class_code,class_name,description,sort_order
+A,Class A,,1
+B,Class B,,2
+C,Class C,,3

@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "BHI Health Card Portal"
+version = "1.0.0"
+id = "artifacts/bhi-card-portal"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20568
+
+[services.development]
+run = "pnpm --filter @workspace/bhi-card-portal run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bhi-card-portal", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/bhi-card-portal/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20568"
+BASE_PATH = "/"

@@ -1,0 +1,60 @@
+# Docker build context exclusions.
+#
+# The first block is a SECURITY CONTROL, not an optimisation.
+#
+# artifacts/api-server/.env holds live third-party credentials (an SMTP app
+# password and an SMS provider account token). A build context copies everything
+# it is not told to exclude, and anything copied into a stage can end up in an
+# image layer that outlives the build. Never remove these lines. Compose hands
+# the containers their env at runtime through env_file instead.
+#
+#   See specs/001-docker-compose-stack/research.md § Security finding
+#   Verified by  specs/001-docker-compose-stack/quickstart.md V13
+#
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies — reinstalled inside the image from the frozen lockfile
+node_modules
+**/node_modules
+
+# Build outputs — rebuilt inside the image, and stale copies would silently win
+**/dist
+**/build
+**/.turbo
+**/*.tsbuildinfo
+
+# Generated release bundles (node deploy/make-release.mjs)
+release
+
+# Version control and editor/agent state
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+.claude
+.agents
+.cursor
+.config
+
+# Spec Kit working files — not needed to build or run anything
+specs
+.specify
+
+# Docs
+docs
+*.md
+!deploy/db/**
+
+# Replit local state
+.cache
+.local
+
+# Noise
+**/*.log
+**/.DS_Store
+**/Thumbs.db
+**/*.swp
+**/coverage
