@@ -86,10 +86,11 @@ const CROSS_COMPANY_EMAIL = "shared.contact@bhi-demo.test"; // one BF member and
 /**
  * Named test employees: real people's inboxes on synthetic member records, so
  * they can sign in with a real emailed code and try the card and discounts.
- * Members of Beharry Foods, each with a policy. Unlike the rest of the demo
- * data they are added on every start when missing, so an existing demo
- * database picks them up without a reset. Names are placeholders — change them
- * here or in the admin portal.
+ * Members of Beharry Foods, each with a policy. Unlike the demo data they do
+ * not depend on DEMO_SEED: on every start, against any database, whatever is
+ * missing is added — the company too, on a fresh database — so a new database
+ * has them from its first start. SEED_TEST_EMPLOYEES=false turns this off.
+ * Names are placeholders — change them here or in the admin portal.
  */
 const TEST_EMPLOYEES = [
   { email: "olaiwon@beharrygroup.com", firstName: "Olaiwon", lastName: "Test" },
@@ -97,15 +98,20 @@ const TEST_EMPLOYEES = [
   { email: "rdatla@beharrygroup.com", firstName: "R.", lastName: "Datla" },
   { email: "udaykumarvalapudasu@gmail.com", firstName: "Uday Kumar", lastName: "Valapudasu" },
 ] as const;
-const TEST_EMPLOYEE_COMPANY = "BF";
+const TEST_EMPLOYEE_COMPANY = { code: "BF", name: "Beharry Foods Ltd" };
 
 async function ensureTestEmployees(): Promise<void> {
+  if (process.env["SEED_TEST_EMPLOYEES"] === "false") return;
   const added = await withScope(SYSTEM_SCOPE, async (tx) => {
     const [company] = await tx
       .select({ companyNumber: bhiCompanyTable.companyNumber })
       .from(bhiCompanyTable)
-      .where(eq(bhiCompanyTable.companyNumber, TEST_EMPLOYEE_COMPANY));
-    if (!company) return [];
+      .where(eq(bhiCompanyTable.companyNumber, TEST_EMPLOYEE_COMPANY.code));
+    if (!company) {
+      await tx
+        .insert(bhiCompanyTable)
+        .values({ companyNumber: TEST_EMPLOYEE_COMPANY.code, companyName: TEST_EMPLOYEE_COMPANY.name, active: true });
+    }
     const out: string[] = [];
     for (const [i, t] of TEST_EMPLOYEES.entries()) {
       const [existing] = await tx
@@ -117,7 +123,7 @@ async function ensureTestEmployees(): Promise<void> {
       const [member] = await tx
         .insert(bhiMemberTable)
         .values({
-          companyNumber: TEST_EMPLOYEE_COMPANY,
+          companyNumber: TEST_EMPLOYEE_COMPANY.code,
           idType: "NATIONAL ID",
           idNumber: `SYN-TEST-${pad(n, 4)}`,
           firstName: t.firstName,
@@ -143,9 +149,9 @@ async function ensureTestEmployees(): Promise<void> {
         memberRef: member!.memberId,
         policyholder: "Edward B. Beharry & Company Ltd",
         policyNumber: `POL-2026-TEST${pad(n, 2)}`,
-        groupNumber: `GRP-${TEST_EMPLOYEE_COMPANY}-01`,
+        groupNumber: `GRP-${TEST_EMPLOYEE_COMPANY.code}-01`,
         memberNumber: `M-TEST${pad(n, 2)}`,
-        certificateNumber: `CERT-${TEST_EMPLOYEE_COMPANY}-TEST${pad(n, 2)}`,
+        certificateNumber: `CERT-${TEST_EMPLOYEE_COMPANY.code}-TEST${pad(n, 2)}`,
         planName: "Group Health Standard",
         effectiveDate: "2026-01-01",
         expiryDate: "2026-12-31",
@@ -196,6 +202,7 @@ async function bootstrapProductionAdmin(): Promise<void> {
 export async function seedIfEmpty(): Promise<void> {
   if (!isDemoSeedEnabled()) {
     await bootstrapProductionAdmin();
+    await ensureTestEmployees();
     return;
   }
   // A class can be given to members only once its four standard tiers are
