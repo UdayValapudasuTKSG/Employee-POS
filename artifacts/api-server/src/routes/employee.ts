@@ -174,7 +174,8 @@ function deliveryDestinations(channel: "EMAIL" | "PHONE", matches: Match[]): str
   return [...out];
 }
 
-async function logEvent(identifier: string, eventType: string, result: string, errorCode?: string): Promise<void> {
+/** An EVENT row keyed by a hash of the identifier, never the identifier itself. Also used by routes/discounts.ts. */
+export async function logEvent(identifier: string, eventType: string, result: string, errorCode?: string): Promise<void> {
   await db.insert(activityLogTable).values({
     kind: "EVENT",
     actor: sha256(identifier).slice(0, 16),

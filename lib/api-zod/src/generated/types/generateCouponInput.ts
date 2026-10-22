@@ -9,4 +9,11 @@ import type { DiscountBrand } from './discountBrand';
 
 export interface GenerateCouponInput {
   brand: DiscountBrand;
+  /** From POST /v1/discounts/coupons/otp */
+  challengeId: string;
+  /**
+     * The 6-digit code sent to the member
+     * @pattern ^[0-9]{6}$
+     */
+  code: string;
 }

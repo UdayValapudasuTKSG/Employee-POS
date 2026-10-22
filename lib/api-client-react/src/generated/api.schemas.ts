@@ -1052,6 +1052,31 @@ export interface DiscountSummary {
 
 export interface GenerateCouponInput {
   brand: DiscountBrand;
+  /** From POST /v1/discounts/coupons/otp */
+  challengeId: string;
+  /**
+     * The 6-digit code sent to the member
+     * @pattern ^[0-9]{6}$
+     */
+  code: string;
+}
+
+export interface CouponOtpInput {
+  brand: DiscountBrand;
+}
+
+export interface CouponOtpChallenge {
+  challengeId: string;
+  brand: DiscountBrand;
+  /** Where the code went, masked */
+  maskedDestination: string;
+  expiresAt: string;
+  resendAfterSeconds: number;
+  /**
+     * The code itself, only when the server runs in OTP dev mode
+     * @nullable
+     */
+  devCode: string | null;
 }
 
 export interface GeneratedCoupon {
@@ -1059,6 +1084,11 @@ export interface GeneratedCoupon {
   code: string;
   coupon: OwnDiscountCoupon;
   remainingThisMonth: number;
+  /**
+     * The masked address a copy of the coupon (code and QR) was emailed to, or null when no copy was sent: no address on file, email not configured, or the send failed. The coupon is valid either way.
+     * @nullable
+     */
+  emailedTo: string | null;
 }
 
 export interface PosCheckInput {

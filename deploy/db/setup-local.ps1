@@ -125,8 +125,8 @@ Get-ChildItem (Join-Path $here "migrations\*.sql") | Sort-Object Name | ForEach-
 & $PsqlPath -d $appUrl -c "\dt bhi.*"
 $bhiTables = & $PsqlPath -d $appUrl -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'bhi'"
 $env:PGPASSWORD = ""
-if ("$bhiTables".Trim() -ne "21") {
-  throw "Expected the 21 tables in schema bhi, found '$bhiTables'. A migration did not apply."
+if ("$bhiTables".Trim() -ne "22") {
+  throw "Expected the 22 tables in schema bhi, found '$bhiTables'. A migration did not apply."
 }
 
 Write-Host "`nDatabase ready. To run the API on this machine, set in artifacts/api-server/.env:"

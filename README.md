@@ -141,7 +141,7 @@ server cannot drift.
 | [`lib/api-spec/`](lib/api-spec/) | `openapi.yaml` — the contract. `pnpm --filter @workspace/api-spec run codegen` regenerates the clients |
 | [`lib/api-client-react/`](lib/api-client-react/) | Generated React Query hooks |
 | [`lib/api-zod/`](lib/api-zod/) | Generated request/response schemas |
-| [`lib/db/`](lib/db/) | Drizzle schema — one schema, `bhi`, with 21 tables: the client's BHI Enrollment Database tables (companies, members, dependants, beneficiaries, classes, rates, billing, status history, import exceptions) and the portal's own (admins, activity log, employee sessions, change requests, policies, import batches, class history, billing issues, discount coupons) |
+| [`lib/db/`](lib/db/) | Drizzle schema — one schema, `bhi`, with 22 tables: the client's BHI Enrollment Database tables (companies, members, dependants, beneficiaries, classes, rates, billing, status history, import exceptions) and the portal's own (admins, activity log, employee sessions, change requests, policies, import batches, class history, billing issues, discount coupons and their one-time codes) |
 | [`artifacts/api-server/`](artifacts/api-server/) | Express 5 API |
 | [`artifacts/bhi-card-portal/`](artifacts/bhi-card-portal/) | React + Vite frontend |
 | [`deploy/`](deploy/) | Local dev stack, release packaging, nginx/systemd templates |

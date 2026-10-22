@@ -15,15 +15,18 @@
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { and, count, desc, eq, gt, gte, lt, lte, sql, type SQL } from "drizzle-orm";
-import { db, discountCouponsTable, type DiscountCoupon } from "@workspace/db";
+import QRCode from "qrcode";
+import { db, discountCouponOtpsTable, discountCouponsTable, type BhiMember, type DiscountCoupon } from "@workspace/db";
 import {
   GenerateDiscountCouponBody,
   ListDiscountCouponsQueryParams,
+  RequestCouponOtpBody,
   PosCheckCouponBody,
   PosRedeemCouponBody,
   PosVoidCouponBody,
 } from "@workspace/api-zod";
 import { writeAudit } from "../lib/audit";
+import { generateOtpCode, isOtpDevMode, MAX_OTP_ATTEMPTS, OTP_TTL_SECONDS, sha256 } from "../lib/auth";
 import {
   BRAND_NAMES,
   DISCOUNT_BRANDS,
@@ -43,7 +46,10 @@ import {
   type DiscountBrand,
   type Quote,
 } from "../lib/discounts";
-import { memberForSession, memberKey, respondCardUnavailable, sessionMember } from "./employee";
+import { logger } from "../lib/logger";
+import { maskIdentifier } from "../lib/masking";
+import { deliverOtp, DeliveryUnavailableError, resolveCardRecipient, sendCouponEmail } from "../lib/otpDelivery";
+import { logEvent, memberForSession, memberKey, respondCardUnavailable, sessionMember } from "./employee";
 
 const router: IRouter = Router();
 
@@ -128,6 +134,36 @@ router.get("/v1/discounts", async (req, res): Promise<void> => {
   });
 });
 
+/**
+ * Emails a copy of a new coupon to the member, with its QR code. Returns the
+ * masked address it went to, or null when it did not go — no address on file,
+ * no SMTP configured, or the send failed. The coupon stands either way; the
+ * response only ever claims a send that happened.
+ */
+async function emailCoupon(member: BhiMember, brand: DiscountBrand, code: string, coupon: DiscountCoupon): Promise<string | null> {
+  const { to, redirectedFrom } = resolveCardRecipient(member.email);
+  if (!to) return null;
+  try {
+    await sendCouponEmail({
+      to,
+      memberName: `${member.firstName} ${member.lastName}`,
+      brandName: BRAND_NAMES[brand],
+      code,
+      discountPercent: percentOf(coupon),
+      expiresAt: coupon.expiresAt,
+      qrPng: await QRCode.toBuffer(code, { type: "png", errorCorrectionLevel: "M", margin: 2, width: 440 }),
+      redirectedFrom,
+    });
+  } catch (err) {
+    const errorCode = err instanceof DeliveryUnavailableError ? "EMAIL_DELIVERY_UNAVAILABLE" : "EMAIL_DELIVERY_FAILED";
+    logger.warn({ err, couponId: coupon.id }, "Coupon email not sent");
+    await logEvent(memberKey(member), "COUPON_EMAIL", "FAILED", errorCode).catch(() => undefined);
+    return null;
+  }
+  await logEvent(memberKey(member), "COUPON_EMAIL", "SENT").catch(() => undefined);
+  return maskIdentifier(to);
+}
+
 /** Page size when the request names none. */
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -182,8 +218,30 @@ router.get("/v1/discounts/coupons", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/v1/discounts/coupons", async (req, res): Promise<void> => {
-  const parsed = GenerateDiscountCouponBody.safeParse(req.body);
+// ---------------------------------------------------------------------------
+// The one-time code asked for before each coupon
+// ---------------------------------------------------------------------------
+
+/** How long a member waits before asking for another coupon code. */
+const COUPON_OTP_RESEND_SECONDS = 60;
+
+const EXHAUSTED_FOR_MEMBER = "You have used this month's discount allowance. It renews on the 1st.";
+
+/**
+ * Where a member's coupon code goes: their own email on file, else their own
+ * phone. Never CARD_EMAIL_OVERRIDE — a code proves control of the member's own
+ * contact, so it can only go there.
+ */
+function otpDestination(member: BhiMember): { channel: "EMAIL" | "PHONE"; to: string } | null {
+  const email = member.email?.trim();
+  if (email) return { channel: "EMAIL", to: email };
+  const phone = member.phone?.trim();
+  if (phone) return { channel: "PHONE", to: phone };
+  return null;
+}
+
+router.post("/v1/discounts/coupons/otp", async (req, res): Promise<void> => {
+  const parsed = RequestCouponOtpBody.safeParse(req.body);
   if (!parsed.success) {
     error(res, 400, "INVALID_INPUT", "Choose KFC or Pizza Hut.");
     return;
@@ -193,22 +251,160 @@ router.post("/v1/discounts/coupons", async (req, res): Promise<void> => {
     respondCardUnavailable(res, "SESSION");
     return;
   }
-  const { member, company } = actor;
+  const { member } = actor;
   const { brand } = parsed.data;
+  // Ask for no code that could not be used.
+  const remaining = discountConfig().monthlyCapCents - (await usedCents(db, member.memberId, allowanceMonth()));
+  if (remaining <= 0) {
+    error(res, 409, "ALLOWANCE_EXHAUSTED", EXHAUSTED_FOR_MEMBER);
+    return;
+  }
+  const destination = otpDestination(member);
+  if (!destination) {
+    error(res, 400, "NO_CONTACT_ON_FILE", "No email address or phone number is on file for you. Contact your HR department.");
+    return;
+  }
+
+  const [latest] = await db
+    .select({ createdAt: discountCouponOtpsTable.createdAt })
+    .from(discountCouponOtpsTable)
+    .where(and(eq(discountCouponOtpsTable.memberRef, member.memberId), eq(discountCouponOtpsTable.status, "PENDING")))
+    .orderBy(desc(discountCouponOtpsTable.createdAt))
+    .limit(1);
+  const waitSeconds = latest
+    ? Math.ceil(COUPON_OTP_RESEND_SECONDS - (Date.now() - latest.createdAt.getTime()) / 1000)
+    : 0;
+  if (waitSeconds > 0) {
+    error(res, 429, "OTP_TOO_SOON", `Wait ${waitSeconds} second${waitSeconds === 1 ? "" : "s"} before asking for another code.`);
+    return;
+  }
+
+  const code = generateOtpCode();
+  const maskedDestination = maskIdentifier(destination.to);
+  const challenge = await db.transaction(async (tx) => {
+    // Only the newest code works: an earlier one still in an inbox is retired.
+    await tx
+      .update(discountCouponOtpsTable)
+      .set({ status: "SUPERSEDED" })
+      .where(and(eq(discountCouponOtpsTable.memberRef, member.memberId), eq(discountCouponOtpsTable.status, "PENDING")));
+    const [row] = await tx
+      .insert(discountCouponOtpsTable)
+      .values({
+        memberRef: member.memberId,
+        brand,
+        otpHash: sha256(code),
+        channel: destination.channel,
+        maskedDestination,
+        expiresAt: new Date(Date.now() + OTP_TTL_SECONDS * 1000),
+      })
+      .returning();
+    return row!;
+  });
+
+  const devMode = isOtpDevMode();
+  if (devMode) {
+    logger.info({ destination: maskedDestination, code }, "[OTP] dev-mode coupon code");
+  } else {
+    try {
+      await deliverOtp(destination.channel, destination.to, code, { kind: "COUPON", brandName: BRAND_NAMES[brand] });
+    } catch (err) {
+      // The member is already signed in, so saying the send failed reveals
+      // nothing. The undelivered code is retired so they can ask again at once.
+      logger.warn({ err, challengeId: challenge.id }, "Coupon code delivery failed");
+      await db
+        .update(discountCouponOtpsTable)
+        .set({ status: "SUPERSEDED" })
+        .where(eq(discountCouponOtpsTable.id, challenge.id));
+      await logEvent(memberKey(member), "COUPON_OTP", "FAILED", "DELIVERY_UNAVAILABLE").catch(() => undefined);
+      error(res, 503, "OTP_DELIVERY_UNAVAILABLE", "We could not send your code just now. Try again in a minute.");
+      return;
+    }
+  }
+  await logEvent(memberKey(member), "COUPON_OTP", "SENT").catch(() => undefined);
+  res.json({
+    challengeId: challenge.id,
+    brand,
+    maskedDestination,
+    expiresAt: challenge.expiresAt.toISOString(),
+    resendAfterSeconds: COUPON_OTP_RESEND_SECONDS,
+    devCode: devMode ? code : null,
+  });
+});
+
+router.post("/v1/discounts/coupons", async (req, res): Promise<void> => {
+  const parsed = GenerateDiscountCouponBody.safeParse(req.body);
+  if (!parsed.success) {
+    error(res, 400, "INVALID_INPUT", "Choose KFC or Pizza Hut, and enter the 6-digit code we sent you.");
+    return;
+  }
+  const actor = await sessionMember(req);
+  if (!actor) {
+    respondCardUnavailable(res, "SESSION");
+    return;
+  }
+  const { member, company } = actor;
+  const { brand, challengeId, code: otp } = parsed.data;
+
+  // The code first: it must be this member's newest, for this brand, in date.
+  const [challenge] = UUID.test(challengeId)
+    ? await db
+        .select()
+        .from(discountCouponOtpsTable)
+        .where(and(eq(discountCouponOtpsTable.id, challengeId), eq(discountCouponOtpsTable.memberRef, member.memberId)))
+    : [];
+  if (!challenge || challenge.brand !== brand || challenge.status === "USED") {
+    error(res, 400, "OTP_NOT_FOUND", "This code is no longer valid. Ask for a new one.");
+    return;
+  }
+  if (challenge.status === "SUPERSEDED") {
+    error(res, 400, "OTP_SUPERSEDED", "A newer code was sent. Enter the latest one.");
+    return;
+  }
+  if (challenge.status === "LOCKED") {
+    error(res, 423, "OTP_LOCKED", "Too many incorrect attempts. Ask for a new code.");
+    return;
+  }
+  if (challenge.expiresAt.getTime() <= Date.now()) {
+    error(res, 400, "OTP_EXPIRED", "This code has expired. Ask for a new one.");
+    return;
+  }
+  if (sha256(otp) !== challenge.otpHash) {
+    // Counted in the database, so parallel guesses cannot each see the old count.
+    const [counted] = await db
+      .update(discountCouponOtpsTable)
+      .set({ attempts: sql`${discountCouponOtpsTable.attempts} + 1` })
+      .where(and(eq(discountCouponOtpsTable.id, challenge.id), eq(discountCouponOtpsTable.status, "PENDING")))
+      .returning({ attempts: discountCouponOtpsTable.attempts });
+    const attempts = counted?.attempts ?? MAX_OTP_ATTEMPTS;
+    if (attempts >= MAX_OTP_ATTEMPTS) {
+      await db
+        .update(discountCouponOtpsTable)
+        .set({ status: "LOCKED" })
+        .where(and(eq(discountCouponOtpsTable.id, challenge.id), eq(discountCouponOtpsTable.status, "PENDING")));
+      error(res, 423, "OTP_LOCKED", "Too many incorrect attempts. Ask for a new code.");
+      return;
+    }
+    const left = MAX_OTP_ATTEMPTS - attempts;
+    error(res, 400, "OTP_INCORRECT", `That code is not correct. ${left} attempt${left === 1 ? "" : "s"} left.`);
+    return;
+  }
+
   const config = discountConfig();
   const remaining = config.monthlyCapCents - (await usedCents(db, member.memberId, allowanceMonth()));
   if (remaining <= 0) {
-    error(
-      res,
-      409,
-      "ALLOWANCE_EXHAUSTED",
-      "You have used this month's discount allowance. It renews on the 1st.",
-    );
+    error(res, 409, "ALLOWANCE_EXHAUSTED", EXHAUSTED_FOR_MEMBER);
     return;
   }
 
   const code = generateCouponCode();
   const coupon = await db.transaction(async (tx) => {
+    // Claim the code under a row lock: two tabs submitting it at once get one coupon.
+    const [claimed] = await tx
+      .select({ id: discountCouponOtpsTable.id })
+      .from(discountCouponOtpsTable)
+      .where(and(eq(discountCouponOtpsTable.id, challenge.id), eq(discountCouponOtpsTable.status, "PENDING")))
+      .for("update");
+    if (!claimed) return null;
     // One live coupon per brand: an older one left unused is cancelled, so a
     // screenshot of it cannot be spent alongside the new one.
     await tx
@@ -245,10 +441,23 @@ router.post("/v1/discounts/coupons", async (req, res): Promise<void> => {
       },
       tx,
     );
+    await tx
+      .update(discountCouponOtpsTable)
+      .set({ status: "USED", usedAt: new Date(), couponId: row!.id })
+      .where(eq(discountCouponOtpsTable.id, challenge.id));
     return row!;
   });
+  if (!coupon) {
+    error(res, 400, "OTP_NOT_FOUND", "This code is no longer valid. Ask for a new one.");
+    return;
+  }
 
-  res.json({ code, coupon: ownCouponJson(coupon), remainingThisMonth: fromCents(remaining) });
+  res.json({
+    code,
+    coupon: ownCouponJson(coupon),
+    remainingThisMonth: fromCents(remaining),
+    emailedTo: await emailCoupon(member, brand, code, coupon),
+  });
 });
 
 // ---------------------------------------------------------------------------

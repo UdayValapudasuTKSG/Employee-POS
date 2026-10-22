@@ -105,8 +105,8 @@ try {
 
     $bhiTables = docker run --rm -e "PGPASSWORD=$pgPassword" postgres:16-alpine `
         psql $conn -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='bhi'"
-    if ("$bhiTables".Trim() -ne '21') {
-        throw "Expected the 21 tables in schema bhi, found '$bhiTables'. A migration did not apply."
+    if ("$bhiTables".Trim() -ne '22') {
+        throw "Expected the 22 tables in schema bhi, found '$bhiTables'. A migration did not apply."
     }
     $tables = docker run --rm -e "PGPASSWORD=$pgPassword" postgres:16-alpine `
         psql $conn -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='bhi'"

@@ -178,12 +178,12 @@ $env:PGPASSWORD="bhi_local_dev"
 & "C:\Program Files\PostgreSQL\15\bin\psql.exe" -h 127.0.0.1 -U bhi_user -d bhi_portal -c "\dt bhi.*"
 ```
 
-Expect 21 tables, all in the one schema `bhi`: the client's 11 (company, member,
+Expect 22 tables, all in the one schema `bhi`: the client's 11 (company, member,
 dependent, beneficiary, class, premium_rates, company_billing_rule, billing_run,
-billing_line, enrollment_status_history, import_exception) and the portal's 10
+billing_line, enrollment_status_history, import_exception) and the portal's 11
 (admin_users, activity_log, employee_sessions, change_requests,
 policy_memberships, import_batch, import_exception_resolutions,
-member_class_history, billing_run_issues, discount_coupons). `public` is empty.
+member_class_history, billing_run_issues, discount_coupons, discount_coupon_otps). `public` is empty.
 
 ### 2. Start everything — one command, one terminal
 

@@ -53,6 +53,8 @@ import type {
   CompanyOnboard,
   CompanyOnboardResult,
   CompanyUpdate,
+  CouponOtpChallenge,
+  CouponOtpInput,
   CreateBillingRuleInput,
   CreateClassInput,
   CreateRateSetInput,
@@ -1115,8 +1117,8 @@ export const getGenerateDiscountCouponUrl = () => {
 }
 
 /**
- * The code is returned once, here, and stored only as a hash. Generating a coupon cancels the member's previous unredeemed coupon for the same brand. Refused when nothing is left of this month's allowance.
- * @summary Generate a single-use coupon for one brand
+ * Needs the one-time code from POST /v1/discounts/coupons/otp. The coupon code is returned once, here, and stored only as a hash. Generating a coupon cancels the member's previous unredeemed coupon for the same brand. Refused when nothing is left of this month's allowance. Wrong code: 400 OTP_INCORRECT (attempts left in the message); after three, 423 OTP_LOCKED. Also 400 OTP_EXPIRED, OTP_SUPERSEDED, OTP_NOT_FOUND.
+ * @summary Generate a single-use coupon for one brand, with the one-time code sent for it
  */
 export const generateDiscountCoupon = async (generateCouponInput: GenerateCouponInput, options?: Parameters<typeof customFetch>[1]): Promise<GeneratedCoupon> => {
 
@@ -1165,7 +1167,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type GenerateDiscountCouponMutationError = ErrorType<ApiErrorEnvelope>
 
     /**
- * @summary Generate a single-use coupon for one brand
+ * @summary Generate a single-use coupon for one brand, with the one-time code sent for it
  */
 export const useGenerateDiscountCoupon = <TError = ErrorType<ApiErrorEnvelope>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateDiscountCoupon>>, TError,{data: BodyType<GenerateCouponInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1176,6 +1178,78 @@ export const useGenerateDiscountCoupon = <TError = ErrorType<ApiErrorEnvelope>,
         TContext
       > => {
       return useMutation(getGenerateDiscountCouponMutationOptions(options));
+    }
+
+export const getRequestCouponOtpUrl = () => {
+
+
+
+
+  return `/api/v1/discounts/coupons/otp`
+}
+
+/**
+ * Goes to the member's own email on file, else their phone. Only the newest code works; asking again retires the earlier one. One request a minute (429 OTP_TOO_SOON).
+ * @summary Send the member a one-time code to confirm generating a coupon
+ */
+export const requestCouponOtp = async (couponOtpInput: CouponOtpInput, options?: Parameters<typeof customFetch>[1]): Promise<CouponOtpChallenge> => {
+
+  return customFetch<CouponOtpChallenge>(getRequestCouponOtpUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(couponOtpInput)
+  }
+);}
+
+
+
+
+
+export const getRequestCouponOtpMutationOptions = <TError = ErrorType<ApiErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestCouponOtp>>, TError,{data: BodyType<CouponOtpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestCouponOtp>>, TError,{data: BodyType<CouponOtpInput>}, TContext> => {
+
+const mutationKey = ['requestCouponOtp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestCouponOtp>>, {data: BodyType<CouponOtpInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestCouponOtp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestCouponOtpMutationResult = NonNullable<Awaited<ReturnType<typeof requestCouponOtp>>>
+    export type RequestCouponOtpMutationBody = BodyType<CouponOtpInput>
+    export type RequestCouponOtpMutationError = ErrorType<ApiErrorEnvelope>
+
+    /**
+ * @summary Send the member a one-time code to confirm generating a coupon
+ */
+export const useRequestCouponOtp = <TError = ErrorType<ApiErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestCouponOtp>>, TError,{data: BodyType<CouponOtpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestCouponOtp>>,
+        TError,
+        {data: BodyType<CouponOtpInput>},
+        TContext
+      > => {
+      return useMutation(getRequestCouponOtpMutationOptions(options));
     }
 
 export const getPosCheckCouponUrl = () => {

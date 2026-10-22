@@ -22,8 +22,9 @@
 --     member_class_history          class at the start of each billing month
 --     billing_run_issues            members a bill could not price
 --
---   Migration 009 adds the 21st, discount_coupons (employee discount coupons
---   and their redemptions); it is not in this dump.
+--   Migrations add two more that are not in this dump: 009 discount_coupons
+--   (employee discount coupons and their redemptions) and 010
+--   discount_coupon_otps (the one-time code asked for before each coupon).
 --
 -- Load it ONCE, into an empty database, as the owner role (bhi_user). Then run
 -- every file in deploy/db/migrations/, on a new installation and on every

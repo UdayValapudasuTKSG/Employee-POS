@@ -569,7 +569,7 @@ SQL
 psql "postgresql://bhi_user:CHANGE_ME_DB_PASSWORD@localhost:${DB_PORT}/bhi_portal" -f db/schema.sql
 \`\`\`
 
-Expect 20 tables; the migrations below add the 21st. No superuser rights are needed for the schema itself — the
+Expect 20 tables; the migrations below add two more. No superuser rights are needed for the schema itself — the
 \`pgcrypto\` extension it enables is a trusted extension, installable by the
 database owner.
 

@@ -271,7 +271,7 @@ done
 psql "postgresql://bhi_user:PASTE_DB_PASSWORD@localhost:5432/bhi_portal" -c '\dt bhi.*'
 ```
 
-Expect 21 tables, all in schema `bhi`.
+Expect 22 tables, all in schema `bhi`.
 
 A `#`, `@`, `/` or `:` in the password breaks `DATABASE_URL` — those characters
 mean something inside a URL. `openssl rand -hex` only produces letters and

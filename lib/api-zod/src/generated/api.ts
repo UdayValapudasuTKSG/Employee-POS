@@ -321,11 +321,16 @@ export const ListDiscountCouponsResponse = zod.object({
 
 
 /**
- * The code is returned once, here, and stored only as a hash. Generating a coupon cancels the member's previous unredeemed coupon for the same brand. Refused when nothing is left of this month's allowance.
- * @summary Generate a single-use coupon for one brand
+ * Needs the one-time code from POST /v1/discounts/coupons/otp. The coupon code is returned once, here, and stored only as a hash. Generating a coupon cancels the member's previous unredeemed coupon for the same brand. Refused when nothing is left of this month's allowance. Wrong code: 400 OTP_INCORRECT (attempts left in the message); after three, 423 OTP_LOCKED. Also 400 OTP_EXPIRED, OTP_SUPERSEDED, OTP_NOT_FOUND.
+ * @summary Generate a single-use coupon for one brand, with the one-time code sent for it
  */
+export const generateDiscountCouponBodyCodeRegExp = new RegExp('^[0-9]{6}$');
+
+
 export const GenerateDiscountCouponBody = zod.object({
-  "brand": zod.enum(['KFC', 'PIZZA_HUT'])
+  "brand": zod.enum(['KFC', 'PIZZA_HUT']),
+  "challengeId": zod.string().describe('From POST \/v1\/discounts\/coupons\/otp'),
+  "code": zod.string().regex(generateDiscountCouponBodyCodeRegExp).describe('The 6-digit code sent to the member')
 })
 
 export const GenerateDiscountCouponResponse = zod.object({
@@ -341,7 +346,26 @@ export const GenerateDiscountCouponResponse = zod.object({
   "billAmount": zod.number().nullable(),
   "discountAmount": zod.number().nullable()
 }).describe('A coupon as its member sees it. The code is never included — it is returned once, when generated, and stored only as a hash.\n'),
-  "remainingThisMonth": zod.number()
+  "remainingThisMonth": zod.number(),
+  "emailedTo": zod.string().nullable().describe('The masked address a copy of the coupon (code and QR) was emailed to, or null when no copy was sent: no address on file, email not configured, or the send failed. The coupon is valid either way.\n')
+})
+
+
+/**
+ * Goes to the member's own email on file, else their phone. Only the newest code works; asking again retires the earlier one. One request a minute (429 OTP_TOO_SOON).
+ * @summary Send the member a one-time code to confirm generating a coupon
+ */
+export const RequestCouponOtpBody = zod.object({
+  "brand": zod.enum(['KFC', 'PIZZA_HUT'])
+})
+
+export const RequestCouponOtpResponse = zod.object({
+  "challengeId": zod.string(),
+  "brand": zod.enum(['KFC', 'PIZZA_HUT']),
+  "maskedDestination": zod.string().describe('Where the code went, masked'),
+  "expiresAt": zod.string(),
+  "resendAfterSeconds": zod.number(),
+  "devCode": zod.string().nullable().describe('The code itself, only when the server runs in OTP dev mode')
 })
 
 

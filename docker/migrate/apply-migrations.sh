@@ -54,8 +54,8 @@ echo "migrate: $count migration(s) applied successfully"
 # 21 means a migration silently did less than it should, and the API would fail
 # in confusing ways — stop here instead.
 bhi_tables=$(psql "$DATABASE_URL" -tA -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'bhi'")
-if [ "$bhi_tables" != "21" ]; then
-  echo "migrate: expected the 21 tables in schema bhi, found '$bhi_tables' — stopping." >&2
+if [ "$bhi_tables" != "22" ]; then
+  echo "migrate: expected the 22 tables in schema bhi, found '$bhi_tables' — stopping." >&2
   exit 1
 fi
-echo "migrate: schema bhi has its 21 tables"
+echo "migrate: schema bhi has its 22 tables"

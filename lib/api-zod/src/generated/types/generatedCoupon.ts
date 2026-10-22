@@ -12,4 +12,9 @@ export interface GeneratedCoupon {
   code: string;
   coupon: OwnDiscountCoupon;
   remainingThisMonth: number;
+  /**
+     * The masked address a copy of the coupon (code and QR) was emailed to, or null when no copy was sent: no address on file, email not configured, or the send failed. The coupon is valid either way.
+     * @nullable
+     */
+  emailedTo: string | null;
 }

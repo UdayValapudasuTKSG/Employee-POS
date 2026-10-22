@@ -73,6 +73,8 @@ export * from './companyOnboardResult';
 export * from './companyProfileFields';
 export * from './companyUpdate';
 export * from './confirmInfo';
+export * from './couponOtpChallenge';
+export * from './couponOtpInput';
 export * from './createBillingRuleInput';
 export * from './createClassInput';
 export * from './createRateSetInput';

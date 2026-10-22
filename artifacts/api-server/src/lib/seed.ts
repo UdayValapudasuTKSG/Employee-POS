@@ -84,6 +84,81 @@ const SHARED_PHONE = "+5925550123"; // five BF members: choose your record after
 const CROSS_COMPANY_EMAIL = "shared.contact@bhi-demo.test"; // one BF member and one ST member
 
 /**
+ * Named test employees: real people's inboxes on synthetic member records, so
+ * they can sign in with a real emailed code and try the card and discounts.
+ * Members of Beharry Foods, each with a policy. Unlike the rest of the demo
+ * data they are added on every start when missing, so an existing demo
+ * database picks them up without a reset. Names are placeholders — change them
+ * here or in the admin portal.
+ */
+const TEST_EMPLOYEES = [
+  { email: "olaiwon@beharrygroup.com", firstName: "Olaiwon", lastName: "Test" },
+  { email: "anand@beharrygroup.com", firstName: "Anand", lastName: "Test" },
+  { email: "rdatla@beharrygroup.com", firstName: "R.", lastName: "Datla" },
+  { email: "udaykumarvalapudasu@gmail.com", firstName: "Uday Kumar", lastName: "Valapudasu" },
+] as const;
+const TEST_EMPLOYEE_COMPANY = "BF";
+
+async function ensureTestEmployees(): Promise<void> {
+  const added = await withScope(SYSTEM_SCOPE, async (tx) => {
+    const [company] = await tx
+      .select({ companyNumber: bhiCompanyTable.companyNumber })
+      .from(bhiCompanyTable)
+      .where(eq(bhiCompanyTable.companyNumber, TEST_EMPLOYEE_COMPANY));
+    if (!company) return [];
+    const out: string[] = [];
+    for (const [i, t] of TEST_EMPLOYEES.entries()) {
+      const [existing] = await tx
+        .select({ memberId: bhiMemberTable.memberId })
+        .from(bhiMemberTable)
+        .where(eq(bhiMemberTable.email, t.email));
+      if (existing) continue;
+      const n = i + 1;
+      const [member] = await tx
+        .insert(bhiMemberTable)
+        .values({
+          companyNumber: TEST_EMPLOYEE_COMPANY,
+          idType: "NATIONAL ID",
+          idNumber: `SYN-TEST-${pad(n, 4)}`,
+          firstName: t.firstName,
+          lastName: t.lastName,
+          dateOfBirth: `${SEED_YEAR - 35}-06-${pad(10 + n, 2)}`,
+          sex: "M",
+          classCode: "B",
+          email: t.email,
+          phone: null,
+          occupation: "Manager",
+          employmentDate: "2020-01-01",
+          planDate: "2026-01-01",
+          active: true,
+        })
+        .returning();
+      await tx.insert(memberClassHistoryTable).values({
+        memberId: member!.memberId,
+        classCode: "B",
+        recordedBy: "SEED",
+        recordedAt: new Date("2026-01-01T04:00:00Z"),
+      });
+      await tx.insert(policyMembershipsTable).values({
+        memberRef: member!.memberId,
+        policyholder: "Edward B. Beharry & Company Ltd",
+        policyNumber: `POL-2026-TEST${pad(n, 2)}`,
+        groupNumber: `GRP-${TEST_EMPLOYEE_COMPANY}-01`,
+        memberNumber: `M-TEST${pad(n, 2)}`,
+        certificateNumber: `CERT-${TEST_EMPLOYEE_COMPANY}-TEST${pad(n, 2)}`,
+        planName: "Group Health Standard",
+        effectiveDate: "2026-01-01",
+        expiryDate: "2026-12-31",
+        insurerName: "North American Life Insurance Co. Ltd.",
+      });
+      out.push(t.email);
+    }
+    return out;
+  });
+  if (added.length > 0) logger.info({ added }, "Added test employees");
+}
+
+/**
  * Demo seeding runs only outside production, or when DEMO_SEED=true is set
  * explicitly. In production without DEMO_SEED, an initial super admin is
  * bootstrapped from ADMIN_EMAIL / ADMIN_PASSWORD instead — no default demo
@@ -134,6 +209,7 @@ export async function seedIfEmpty(): Promise<void> {
     tx.select({ n: count() }).from(bhiCompanyTable),
   );
   if (n > 0) {
+    await ensureTestEmployees();
     await logStartupInfo();
     return;
   }
@@ -290,6 +366,7 @@ export async function seedIfEmpty(): Promise<void> {
   });
 
   logger.info(summary, "Seed complete");
+  await ensureTestEmployees();
   await logStartupInfo();
 }
 
@@ -306,6 +383,7 @@ async function logStartupInfo(): Promise<void> {
         ...(sample[0]?.email ? [`email: ${sample[0].email}`] : []),
         `shared phone, one company (choose record): ${SHARED_PHONE}`,
         `shared email, two companies (contact HR): ${CROSS_COMPANY_EMAIL}`,
+        ...TEST_EMPLOYEES.map((t) => `test employee (real inbox): ${t.email}`),
       ],
     },
     "BHI demo credentials",

@@ -29,7 +29,7 @@ async function q<T>(text: string): Promise<T[]> {
 }
 
 /** The portal's own tables, kept beside the client's in the one schema. */
-const PLATFORM_TABLES = ["activity_log", "admin_users", "billing_run_issues", "change_requests", "discount_coupons", "employee_sessions", "import_batch", "import_exception_resolutions", "member_class_history", "policy_memberships"];
+const PLATFORM_TABLES = ["activity_log", "admin_users", "billing_run_issues", "change_requests", "discount_coupon_otps", "discount_coupons", "employee_sessions", "import_batch", "import_exception_resolutions", "member_class_history", "policy_memberships"];
 const CLIENT_TABLES = Object.keys(EXPECTED_TABLES);
 const inClientTables = `(${CLIENT_TABLES.map((t) => `'${t}'`).join(", ")})`;
 

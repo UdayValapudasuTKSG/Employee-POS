@@ -13,3 +13,4 @@ export * from "./policies";
 export * from "./importBatch";
 export * from "./memberClassHistory";
 export * from "./discountCoupons";
+export * from "./discountCouponOtps";

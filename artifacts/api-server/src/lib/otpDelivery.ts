@@ -1,22 +1,7 @@
 import nodemailer from "nodemailer";
 import { logger } from "./logger";
 import { OTP_TTL_SECONDS } from "./constants";
-import { issuerDetails } from "./issuer";
-
-/**
- * How the insurer refers to itself in outbound messages. Comes from ISSUER_NAME
- * like everything else the member sees; when unset the messages read generically
- * rather than naming an insurer this deployment is not.
- */
-function issuerLabel(): string | null {
-  return issuerDetails().name;
-}
-
-/** "Your NALICO verification code" / "Your verification code". */
-function branded(suffix: string): string {
-  const name = issuerLabel();
-  return name ? `${name} ${suffix}` : suffix;
-}
+import { cardEmail, couponEmail, otpEmail, otpSms, type EmailContent, type OtpPurpose } from "./emailTemplates";
 
 /**
  * Production OTP delivery.
@@ -29,6 +14,8 @@ function branded(suffix: string): string {
  * message to your SMS gateway with SMS_WEBHOOK_URL (POST JSON
  * { to, body }; optional bearer auth via SMS_WEBHOOK_TOKEN), e.g. a Twilio
  * function, MessageBird flow, or an in-house gateway.
+ *
+ * What each message says is in emailTemplates.ts.
  */
 
 /** Base class: any reason a code could not be delivered (config or runtime). */
@@ -73,29 +60,40 @@ function smtpFrom(): string {
   );
 }
 
+type Attachment = { filename: string; content: Buffer; contentType: string; cid?: string };
+
+/** Sends one templated email, or throws DeliveryUnavailableError. */
+async function sendEmail(to: string, content: EmailContent, what: string, attachments: Attachment[] = []): Promise<void> {
+  if (!isEmailDeliveryConfigured()) throw new DeliveryNotConfiguredError("EMAIL");
+  try {
+    await createSmtpTransport().sendMail({
+      from: smtpFrom(),
+      to,
+      subject: content.subject,
+      text: content.text,
+      html: content.html,
+      attachments,
+    });
+  } catch (err) {
+    logger.error({ err }, `SMTP ${what} delivery failed`);
+    throw new DeliveryUnavailableError("Email delivery failed");
+  }
+}
+
+/**
+ * A one-time code, by email or SMS. `purpose` says what it unlocks: signing in
+ * (the default) or generating a discount coupon.
+ */
 export async function deliverOtp(
   channel: "EMAIL" | "PHONE",
   destination: string,
   code: string,
+  purpose: OtpPurpose = { kind: "LOGIN" },
 ): Promise<void> {
   const minutes = Math.round(OTP_TTL_SECONDS / 60);
-  const subject = `Your ${branded("verification code")}`;
-  const body = `${subject} is ${code}. It expires in ${minutes} minutes.`;
 
   if (channel === "EMAIL") {
-    if (!isEmailDeliveryConfigured()) throw new DeliveryNotConfiguredError(channel);
-    const transporter = createSmtpTransport();
-    try {
-      await transporter.sendMail({
-        from: smtpFrom(),
-        to: destination,
-        subject,
-        text: body,
-      });
-    } catch (err) {
-      logger.error({ err }, "SMTP OTP delivery failed");
-      throw new DeliveryUnavailableError("Email delivery failed");
-    }
+    await sendEmail(destination, otpEmail(code, minutes, purpose), "OTP");
     return;
   }
 
@@ -109,7 +107,7 @@ export async function deliverOtp(
     resp = await fetch(process.env["SMS_WEBHOOK_URL"]!, {
       method: "POST",
       headers,
-      body: JSON.stringify({ to: destination, body }),
+      body: JSON.stringify({ to: destination, body: otpSms(code, minutes, purpose) }),
     });
   } catch (err) {
     logger.error({ err }, "SMS webhook unreachable");
@@ -175,43 +173,39 @@ export interface CardEmailInput {
 
 /** Sends the insurance card as a PDF attachment. */
 export async function sendCardEmail(input: CardEmailInput): Promise<void> {
-  if (!isEmailDeliveryConfigured()) throw new DeliveryNotConfiguredError("EMAIL");
-
   const safe = (v: string) => v.replace(/[^A-Za-z0-9._-]/g, "-");
-  const prefix = issuerLabel() ? `${safe(issuerLabel()!)}-` : "";
-  const filename = `${prefix}card-${safe(input.policyNumber)}.pdf`;
+  await sendEmail(
+    input.to,
+    cardEmail({ memberName: input.memberName, policyNumber: input.policyNumber, redirectedFrom: input.redirectedFrom }),
+    "card PDF",
+    [{ filename: `card-${safe(input.policyNumber)}.pdf`, content: input.pdf, contentType: "application/pdf" }],
+  );
+}
 
-  const subject = `Your ${branded("medical insurance card")}`;
-  const lines = [
-    `Dear ${input.memberName},`,
-    "",
-    `${subject} is attached as a PDF.`,
-    "",
-    "The card is for identification only and does not guarantee eligibility.",
-    "Present it together with valid photo identification at the point of service.",
-    "Report a lost or stolen card to your HR department immediately.",
-  ];
-  if (input.redirectedFrom) {
-    lines.push(
-      "",
-      "---",
-      `Prototype notice: this message was redirected here. In production it would be sent to ${input.redirectedFrom}.`,
-    );
-  }
+// ---------------------------------------------------------------------------
+// Emailing a discount coupon
+// ---------------------------------------------------------------------------
 
-  const transporter = createSmtpTransport();
-  try {
-    await transporter.sendMail({
-      from: smtpFrom(),
-      to: input.to,
-      subject,
-      text: lines.join("\n"),
-      attachments: [
-        { filename, content: input.pdf, contentType: "application/pdf" },
-      ],
-    });
-  } catch (err) {
-    logger.error({ err }, "Card PDF email failed");
-    throw new DeliveryUnavailableError("Email delivery failed");
-  }
+export interface CouponEmailSendInput {
+  to: string;
+  memberName: string;
+  brandName: string;
+  code: string;
+  discountPercent: number;
+  expiresAt: Date;
+  /** The QR code as a PNG, shown inline in the message. */
+  qrPng: Buffer;
+  redirectedFrom?: string | null;
+}
+
+/**
+ * Sends a just-generated coupon to the member, its QR code inline so it can be
+ * scanned straight from the inbox. A copy for convenience — the coupon is
+ * equally valid shown from the portal.
+ */
+export async function sendCouponEmail(input: CouponEmailSendInput): Promise<void> {
+  const qrCid = "coupon-qr";
+  await sendEmail(input.to, couponEmail({ ...input, qrCid }), "coupon", [
+    { filename: "coupon-qr.png", content: input.qrPng, contentType: "image/png", cid: qrCid },
+  ]);
 }

@@ -363,11 +363,15 @@ paths:
     post:
       operationId: generateDiscountCoupon
       tags: [employee]
-      summary: Generate a single-use coupon for one brand
+      summary: Generate a single-use coupon for one brand, with the one-time code sent for it
       description: >
-        The code is returned once, here, and stored only as a hash. Generating
-        a coupon cancels the member's previous unredeemed coupon for the same
-        brand. Refused when nothing is left of this month's allowance.
+        Needs the one-time code from POST /v1/discounts/coupons/otp. The
+        coupon code is returned once, here, and stored only as a hash.
+        Generating a coupon cancels the member's previous unredeemed coupon for
+        the same brand. Refused when nothing is left of this month's allowance.
+        Wrong code: 400 OTP_INCORRECT (attempts left in the message); after
+        three, 423 OTP_LOCKED. Also 400 OTP_EXPIRED, OTP_SUPERSEDED,
+        OTP_NOT_FOUND.
       security:
         - bearerAuth: []
       requestBody:
@@ -397,6 +401,66 @@ paths:
                 $ref: "#/components/schemas/ApiErrorEnvelope"
         "409":
           description: This month's allowance is used up (ALLOWANCE_EXHAUSTED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "423":
+          description: Too many incorrect codes (OTP_LOCKED); ask for a new one
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+  /v1/discounts/coupons/otp:
+    post:
+      operationId: requestCouponOtp
+      tags: [employee]
+      summary: Send the member a one-time code to confirm generating a coupon
+      description: >
+        Goes to the member's own email on file, else their phone. Only the
+        newest code works; asking again retires the earlier one. One request
+        a minute (429 OTP_TOO_SOON).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CouponOtpInput"
+      responses:
+        "200":
+          description: Code sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CouponOtpChallenge"
+        "400":
+          description: Unknown brand (INVALID_INPUT), or no email or phone on file (NO_CONTACT_ON_FILE)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "401":
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "409":
+          description: This month's allowance is used up (ALLOWANCE_EXHAUSTED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "429":
+          description: Asked again within a minute (OTP_TOO_SOON)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorEnvelope"
+        "503":
+          description: The code could not be sent (OTP_DELIVERY_UNAVAILABLE)
           content:
             application/json:
               schema:
@@ -3558,7 +3622,26 @@ components:
       type: object
       properties:
         brand: { $ref: "#/components/schemas/DiscountBrand" }
+        challengeId: { type: string, description: "From POST /v1/discounts/coupons/otp" }
+        code: { type: string, pattern: '^[0-9]{6}$', description: "The 6-digit code sent to the member" }
+      required: [brand, challengeId, code]
+    CouponOtpInput:
+      type: object
+      properties:
+        brand: { $ref: "#/components/schemas/DiscountBrand" }
       required: [brand]
+    CouponOtpChallenge:
+      type: object
+      properties:
+        challengeId: { type: string }
+        brand: { $ref: "#/components/schemas/DiscountBrand" }
+        maskedDestination: { type: string, description: "Where the code went, masked" }
+        expiresAt: { type: string }
+        resendAfterSeconds: { type: number }
+        devCode:
+          type: ["string", "null"]
+          description: The code itself, only when the server runs in OTP dev mode
+      required: [challengeId, brand, maskedDestination, expiresAt, resendAfterSeconds, devCode]
     GeneratedCoupon:
       type: object
       properties:
@@ -3567,7 +3650,13 @@ components:
           description: "What the QR code encodes, e.g. K7PQ-3MZX-9TRA. Shown once."
         coupon: { $ref: "#/components/schemas/OwnDiscountCoupon" }
         remainingThisMonth: { type: number }
-      required: [code, coupon, remainingThisMonth]
+        emailedTo:
+          type: ["string", "null"]
+          description: >
+            The masked address a copy of the coupon (code and QR) was emailed
+            to, or null when no copy was sent: no address on file, email not
+            configured, or the send failed. The coupon is valid either way.
+      required: [code, coupon, remainingThisMonth, emailedTo]
     PosCheckInput:
       type: object
       properties:

@@ -11,6 +11,7 @@ import {
   Clock,
   Drumstick,
   Loader2,
+  MailCheck,
   Pizza,
   QrCode,
   ShoppingBag,
@@ -23,9 +24,11 @@ import {
   useGenerateDiscountCoupon,
   useGetDiscounts,
   useListDiscountCoupons,
+  useRequestCouponOtp,
 } from '@workspace/api-client-react';
 import type {
   ApiErrorEnvelope,
+  CouponOtpChallenge,
   DiscountBrand,
   DiscountBrandInfo,
   ErrorType,
@@ -37,6 +40,8 @@ import { useAuth } from '@/contexts/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
@@ -193,6 +198,114 @@ function CouponDialog({
               Done
             </Button>
           </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The one-time code asked for before a coupon is generated
+// ---------------------------------------------------------------------------
+
+type SentChallenge = CouponOtpChallenge & { sentAt: number };
+
+function CouponOtpDialog({
+  challenge,
+  brandName,
+  error,
+  submitting,
+  resending,
+  onSubmit,
+  onResend,
+  onClose,
+}: {
+  challenge: SentChallenge | null;
+  brandName: string;
+  error: string | null;
+  submitting: boolean;
+  resending: boolean;
+  onSubmit: (code: string) => void;
+  onResend: () => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState('');
+  const now = useNow(challenge != null);
+  // A new code (or a refusal) clears what was typed.
+  useEffect(() => setValue(''), [challenge?.challengeId, error]);
+  // `now` ticks each second but can predate the code being sent, so never use an older clock.
+  const clock = Math.max(now, challenge?.sentAt ?? 0);
+  const resendIn = challenge ? Math.ceil((challenge.sentAt + challenge.resendAfterSeconds * 1000 - clock) / 1000) : 0;
+
+  const submit = (code: string) => {
+    if (code.length === 6 && !submitting) onSubmit(code);
+  };
+
+  return (
+    <Dialog open={challenge != null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm" data-testid="coupon-otp-dialog">
+        <DialogHeader>
+          <DialogTitle>Confirm with a code</DialogTitle>
+          <DialogDescription>
+            We sent a 6-digit code to{' '}
+            <span className="tnum font-semibold text-[var(--fg-1)]">{challenge?.maskedDestination}</span>. Enter it to
+            generate your {brandName} coupon.
+          </DialogDescription>
+        </DialogHeader>
+
+        {challenge && (
+          <form
+            className="flex flex-col items-center gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit(value);
+            }}
+          >
+            {challenge.devCode && (
+              <p className="ds-meta w-full rounded-lg bg-[var(--surface-2)] px-3 py-2 text-center">
+                Development mode: your code is{' '}
+                <span className="tnum font-mono font-bold text-[var(--fg-1)]">{challenge.devCode}</span>
+              </p>
+            )}
+            <InputOTP
+              id="coupon-otp"
+              maxLength={6}
+              value={value}
+              onChange={setValue}
+              onComplete={submit}
+              disabled={submitting}
+              autoFocus
+              aria-label="6-digit code"
+              data-testid="input-coupon-otp"
+            >
+              <InputOTPGroup>
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <InputOTPSlot key={i} index={i} />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+
+            {error && (
+              <Alert variant="destructive" className="w-full" data-testid="coupon-otp-error">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" className="w-full" disabled={value.length !== 6 || submitting} data-testid="button-confirm-otp">
+              {submitting ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <MailCheck aria-hidden="true" className="h-4 w-4" />}
+              {submitting ? 'Generating…' : 'Confirm and generate'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={resendIn > 0 || resending}
+              onClick={onResend}
+              data-testid="button-resend-otp"
+            >
+              {resending ? 'Sending…' : resendIn > 0 ? `Send a new code in ${resendIn}s` : 'Send a new code'}
+            </Button>
+          </form>
         )}
       </DialogContent>
     </Dialog>
@@ -462,6 +575,9 @@ export default function Discounts() {
     },
   });
   const generate = useGenerateDiscountCoupon();
+  const requestOtp = useRequestCouponOtp();
+  const [challenge, setChallenge] = useState<SentChallenge | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Same gate as the card: discounts are for a verified member only.
@@ -521,24 +637,57 @@ export default function Discounts() {
   // A new coupon belongs at the top of the history, whatever page or filter is showing.
   const refreshHistory = () => queryClient.invalidateQueries({ queryKey: getListDiscountCouponsQueryKey() });
 
+  const errorMessage = (err: unknown, fallback: string) =>
+    (err as ErrorType<ApiErrorEnvelope>)?.data?.error?.message ?? fallback;
+  const errorCode = (err: unknown) => (err as ErrorType<ApiErrorEnvelope>)?.data?.error?.code;
+
+  /** Step 1: send the member a code. Also "Send a new code" in the dialog. */
   const handleGenerate = (brand: DiscountBrand) => {
-    generate.mutate(
+    requestOtp.mutate(
       { data: { brand } },
       {
+        onSuccess: (sent) => {
+          setOtpError(null);
+          setChallenge({ ...sent, sentAt: Date.now() });
+        },
+        onError: (err) => {
+          const message = errorMessage(err, 'We could not send your code. Try again shortly.');
+          if (challenge) {
+            setOtpError(message);
+          } else {
+            toast({ title: 'Could not send a code', description: message, variant: 'destructive' });
+          }
+          void refetch();
+        },
+      },
+    );
+  };
+
+  /** Step 2: the code is right, so the coupon is generated. */
+  const handleConfirm = (otp: string) => {
+    if (!challenge) return;
+    generate.mutate(
+      { data: { brand: challenge.brand, challengeId: challenge.challengeId, code: otp } },
+      {
         onSuccess: (result) => {
+          setChallenge(null);
+          setOtpError(null);
           setCodes(saveCode(cardToken, result.coupon.id, result.code));
           setShownId(result.coupon.id);
           void refetch();
           void refreshHistory();
+          if (result.emailedTo) {
+            toast({ title: 'Coupon emailed', description: `A copy with the QR code was sent to ${result.emailedTo}.` });
+          }
         },
         onError: (err) => {
-          const envelope = (err as ErrorType<ApiErrorEnvelope>)?.data;
-          toast({
-            title: 'Could not generate a coupon',
-            description: envelope?.error?.message ?? 'Something went wrong. Try again shortly.',
-            variant: 'destructive',
-          });
-          void refetch();
+          if (errorCode(err) === 'ALLOWANCE_EXHAUSTED') {
+            setChallenge(null);
+            toast({ title: 'Could not generate a coupon', description: errorMessage(err, ''), variant: 'destructive' });
+            void refetch();
+            return;
+          }
+          setOtpError(errorMessage(err, 'Something went wrong. Try again shortly.'));
         },
       },
     );
@@ -581,7 +730,7 @@ export default function Discounts() {
         <AutoGrid min={260} gap={16}>
           {data.brands.map(({ brand, name }) => {
             const live = liveCoupon(brand);
-            const pending = generate.isPending && generate.variables?.data.brand === brand;
+            const pending = requestOtp.isPending && requestOtp.variables?.data.brand === brand;
             return (
               <article key={brand} className="ds-card flex min-w-0 flex-col gap-4 px-5 py-5" data-testid={`partner-${brand}`}>
                 <div className="flex items-start justify-between gap-3">
@@ -607,7 +756,7 @@ export default function Discounts() {
                 ) : (
                   <Button
                     className="mt-auto"
-                    disabled={exhausted || generate.isPending}
+                    disabled={exhausted || requestOtp.isPending}
                     onClick={() => handleGenerate(brand)}
                     data-testid={`button-generate-${brand}`}
                   >
@@ -653,6 +802,20 @@ export default function Discounts() {
         currentMonth={data.month}
         watching={shownId != null}
         onShow={setShownId}
+      />
+
+      <CouponOtpDialog
+        challenge={challenge}
+        brandName={challenge ? brandName(challenge.brand) : ''}
+        error={otpError}
+        submitting={generate.isPending}
+        resending={requestOtp.isPending}
+        onSubmit={handleConfirm}
+        onResend={() => challenge && handleGenerate(challenge.brand)}
+        onClose={() => {
+          setChallenge(null);
+          setOtpError(null);
+        }}
       />
 
       <CouponDialog
