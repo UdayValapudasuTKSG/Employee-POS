@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/*
+ * The Beharry palette, measured from the Beharry logo: red #ED2C25 and black,
+ * on white. Red for action and emphasis, black for the dark bands, warm
+ * neutral greys between. Green appears only to mean "saved" or "used".
+ * Bricolage Grotesque for headlines, Figtree for reading, JetBrains Mono for
+ * codes and amounts.
+ */
+@theme {
+  --color-ink: #17120f;
+  --color-paper: #f7f6f5;
+  --color-card: #ffffff;
+  --color-brand: #ed2c25;
+  --color-brand-dark: #c41f19;
+  --color-brand-deep: #0b0708;
+  --color-brand-soft: #fdecea;
+  --color-accent: #ed2c25;
+  --color-accent-soft: #fdf1f0;
+  --color-muted: #625a57;
+  --color-line: #e7e1df;
+  --color-ok: #15784a;
+  --color-ok-soft: #e2f3e9;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdeceb;
+
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  h1, h2, h3 {
+    @apply font-display;
+    text-wrap: balance;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  min-height: 48px;
+}
+@utility btn-primary {
+  @apply btn bg-brand text-white hover:bg-brand-dark;
+}
+@utility btn-accent {
+  @apply btn bg-brand-deep text-white hover:bg-ink;
+}
+@utility btn-ghost {
+  @apply btn border border-line bg-card text-ink hover:border-brand hover:text-brand;
+}
+@utility card {
+  @apply rounded-2xl border border-line bg-card;
+}
+@utility eyebrow {
+  @apply text-xs font-bold uppercase tracking-[0.14em] text-brand;
+}
+@utility field {
+  @apply w-full rounded-xl border border-line bg-card px-4 text-ink outline-none transition-colors focus:border-ink;
+  min-height: 52px;
+}
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,46 @@
+# Beharry Staff Discounts, locally: its own PostgreSQL and the app.
+#
+#   cp .env.example .env      # then fill in SESSION_SECRET, DB_PASSWORD, SMTP_*, POS_KEY_*
+#   docker compose up -d --build
+#   → http://localhost:3200
+#
+# Separate from the health card portal's stack: its own project name, ports and
+# database volume. `docker compose down` keeps the data; `down -v` deletes it.
+name: beharry-discounts
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: discounts
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: discounts
+    volumes:
+      - discounts-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U discounts -d discounts -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    # This machine only, for pgAdmin or psql.
+    ports:
+      - "127.0.0.1:${DB_PORT:-5435}:5432"
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # Inside the stack the database is `db`, whatever DATABASE_URL says for running on the host.
+      DATABASE_URL: postgresql://discounts:${DB_PASSWORD}@db:5432/discounts
+      PORT: 3200
+      HOST: 0.0.0.0
+    ports:
+      - "${APP_PORT:-3200}:3200"
+    restart: unless-stopped
+
+volumes:
+  discounts-db:
